@@ -1,0 +1,186 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// Core models
+model User {
+  id         String        @id @default(cuid())
+  name       String
+  email      String        @unique
+  password   String
+  role       Role          @default(TEACHER)
+  avatarUrl  String?
+  phone      String?
+  gender     String?
+  birthDate  DateTime?
+  createdAt  DateTime      @default(now())
+  updatedAt  DateTime      @updatedAt
+
+  // Relations
+  activities Activity[]
+  tokens     RefreshToken[]
+  decidedRequests SignupRequest[] @relation("UserDecisions")
+}
+
+model Student {
+  id         String            @id @default(cuid())
+  name       String
+  email      String?           @unique
+  registryId String?           @unique // matrícula opcional
+  createdAt  DateTime          @default(now())
+  updatedAt  DateTime          @updatedAt
+
+  enrollments      Enrollment[]
+  attendanceRecord AttendanceRecord[]
+  grades           ActivityGrade[]
+}
+
+model Class {
+  id        String       @id @default(cuid())
+  name      String
+  code      String       @unique
+  year      Int
+  createdAt DateTime     @default(now())
+  updatedAt DateTime     @updatedAt
+
+  enrollments  Enrollment[]
+  attendance   AttendanceDay[]
+  plannings    Planning[]
+  activities   Activity[]
+}
+
+model Enrollment {
+  id        String   @id @default(cuid())
+  classId   String
+  studentId String
+  startDate DateTime @default(now())
+  endDate   DateTime?
+
+  student Student @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  class   Class   @relation(fields: [classId], references: [id], onDelete: Cascade)
+
+  @@unique([classId, studentId])
+}
+
+model AttendanceDay {
+  id        String      @id @default(cuid())
+  classId   String
+  date      DateTime
+  notes     String?
+
+  class   Class             @relation(fields: [classId], references: [id], onDelete: Cascade)
+  records AttendanceRecord[]
+
+  @@unique([classId, date])
+}
+
+model AttendanceRecord {
+  id              String        @id @default(cuid())
+  attendanceDayId String
+  studentId       String
+  status          AttendanceStatus
+  observation     String?
+
+  day     AttendanceDay @relation(fields: [attendanceDayId], references: [id], onDelete: Cascade)
+  student Student       @relation(fields: [studentId], references: [id], onDelete: Cascade)
+
+  @@unique([attendanceDayId, studentId])
+}
+
+model Planning {
+  id            String        @id @default(cuid())
+  classId       String
+  kind          PlanningKind  @default(ANNUAL)
+  title         String
+  details       String?
+  content       String?
+  discipline    String?
+  lessonsPlanned Int?
+  date          DateTime?
+
+  class Class @relation(fields: [classId], references: [id], onDelete: Cascade)
+}
+
+model Activity {
+  id          String      @id @default(cuid())
+  classId     String
+  teacherId   String
+  title       String
+  description String?
+  dueDate     DateTime?
+  maxScore    Float       @default(10)
+
+  class   Class @relation(fields: [classId], references: [id], onDelete: Cascade)
+  teacher User  @relation(fields: [teacherId], references: [id], onDelete: Restrict)
+  grades  ActivityGrade[]
+}
+
+model ActivityGrade {
+  id         String   @id @default(cuid())
+  activityId String
+  studentId  String
+  score      Float
+  feedback   String?
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  activity Activity @relation(fields: [activityId], references: [id], onDelete: Cascade)
+  student  Student  @relation(fields: [studentId], references: [id], onDelete: Cascade)
+
+  @@unique([activityId, studentId])
+}
+
+model RefreshToken {
+  id        String   @id @default(cuid())
+  userId    String
+  token     String   @unique
+  expiresAt DateTime
+  valid     Boolean  @default(true)
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  @@index([userId])
+}
+
+enum Role {
+  ADMIN
+  TEACHER
+  SECRETARY
+}
+
+enum AttendanceStatus {
+  PRESENT
+  ABSENT
+  LATE
+  JUSTIFIED
+}
+
+enum PlanningKind {
+  ANNUAL
+  SEMESTER
+  INDIVIDUAL
+}
+
+model SignupRequest {
+  id           String        @id @default(cuid())
+  name         String
+  email        String        @unique
+  passwordHash String?
+  roleRequested Role         @default(TEACHER)
+  status       SignupStatus  @default(PENDING)
+  reason       String?
+  createdAt    DateTime      @default(now())
+  decidedAt    DateTime?
+  decidedById  String?
+  decidedBy    User?         @relation("UserDecisions", fields: [decidedById], references: [id])
+}
+
+enum SignupStatus {
+  PENDING
+  APPROVED
+  REJECTED
+}

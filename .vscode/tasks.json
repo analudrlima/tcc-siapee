@@ -1,0 +1,15 @@
+{
+	"version": "2.0.0",
+	"tasks": [
+		{
+			"label": "Open Frontend",
+			"type": "shell",
+			"command": "cmd",
+			"args": [
+				"/c",
+				"start",
+				"http://localhost:5173/"
+			]
+		}
+	]
+}

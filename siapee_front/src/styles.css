@@ -1,0 +1,140 @@
+:root{
+  --blue:#0b3e79;
+  --blue-2:#164d93;
+  --light:#f1eceb;
+  --panel:#dfe1e5;
+}
+*{box-sizing:border-box}
+html,body,#root{height:100%}
+body{margin:0;font-family:Segoe UI, Roboto, Arial, Helvetica, sans-serif;background:var(--light);color:#111}
+a{color:inherit;text-decoration:none}
+
+.topbar{height:56px;background:var(--blue);color:#fff;display:flex;align-items:center;justify-content:space-between;padding:0 16px}
+.topbar{height:72px;background:linear-gradient(90deg,var(--blue),var(--blue-2));color:#fff;display:flex;align-items:center;justify-content:space-between;padding:0 20px}
+.topbar-left{display:flex;align-items:center;gap:12px}
+.logo-box{width:56px;height:56px;background:rgba(255,255,255,0.06);display:flex;align-items:center;justify-content:center;border-radius:10px;padding:6px}
+.logo-box img{width:44px;height:44px;display:block}
+
+.hamburger{background:transparent;border:none;color:#fff;font-size:18px;margin-right:8px;cursor:pointer;padding:6px 8px;border-radius:6px}
+.hamburger:hover{background:rgba(255,255,255,0.03)}
+.brand-text{line-height:1}
+.brand-name{font-weight:700;letter-spacing:0.6px}
+.brand-sub{font-size:12px;opacity:0.9}
+.topbar-right{display:flex;align-items:center;gap:12px}
+.user-info{display:flex;flex-direction:column;align-items:flex-end;margin-right:6px;justify-content:center}
+.user-name{font-weight:600;line-height:1}
+.user-role{font-size:12px;opacity:0.8;line-height:1}
+.btn-ghost{background:transparent;border:1px solid rgba(255,255,255,0.12);color:#fff;padding:8px 12px;border-radius:8px}
+
+/* profile menu */
+.profile-menu-wrap{position:relative;display:flex;align-items:center}
+.profile-trigger{background:transparent;border:none;padding:0;cursor:pointer;display:flex;align-items:center;justify-content:center}
+.avatar-circle{display:flex;align-items:center;justify-content:center;width:40px;height:40px;border-radius:50%;background:#fff3;border:2px solid rgba(255,255,255,0.12);overflow:hidden}
+.avatar-img{width:100%;height:100%;object-fit:cover;display:block;border-radius:50%}
+.profile-dropdown{position:absolute;right:0;top:56px;background:#fff;color:#111;border-radius:8px;box-shadow:0 10px 30px rgba(0,0,0,0.14);min-width:160px;padding:6px;display:flex;flex-direction:column;gap:6px}
+.profile-dropdown a, .profile-dropdown button{background:transparent;border:none;padding:10px 12px;text-align:left;cursor:pointer;color:inherit}
+.profile-dropdown a{color:#123b6f;font-weight:600}
+.profile-dropdown a, .profile-dropdown button{background:transparent;border:none;padding:8px 10px;text-align:left;cursor:pointer;color:inherit}
+.profile-dropdown a:hover, .profile-dropdown button:hover{background:rgba(0,0,0,0.04)}
+.avatar{ /* legacy neutral avatar class - no outer circle */ display:inline-block }
+
+.layout{display:flex;height:calc(100% - 56px)}
+.sidebar{width:260px;background:#083055;color:#fff;padding:18px 12px;overflow:auto;transition:width .28s ease, transform .28s ease}
+.sidebar-inner{display:flex;flex-direction:column;gap:18px}
+.nav-group{display:flex;flex-direction:column;gap:6px}
+.nav-heading{font-size:13px;padding:6px 8px;color:#bcd3f8;font-weight:700}
+.sidebar .link{display:block;padding:10px 12px;color:#e6f0ff;border-radius:8px;margin:2px 4px}
+.sidebar .link:hover{background:rgba(255,255,255,0.04);transform:translateX(4px)}
+.sidebar .link.active{background:rgba(255,255,255,0.08);font-weight:700}
+
+.sidebar .avatar{width:40px;height:40px;border-radius:8px;background:linear-gradient(180deg,#fff3,#fff0);border:1px solid rgba(255,255,255,0.08)}
+.content{flex:1;overflow:auto;padding:16px}
+
+.card{background:#fff;border-radius:10px;padding:16px;border:1px solid #e7e7e7}
+.panel{background:var(--panel);border-radius:10px;padding:16px}
+.title{font-size:22px;margin:8px 0 16px}
+.form-row{display:flex;gap:12px;flex-wrap:wrap;margin-bottom:12px}
+.input, .select, .textarea{padding:10px 12px;border:2px solid #1d4f9a;border-radius:8px;outline:none;min-width:220px}
+.textarea{min-height:180px;width:100%}
+.btn{background:#1d4f9a;color:#fff;border:none;padding:10px 18px;border-radius:10px;cursor:pointer}
+.btn:disabled{opacity:.6;cursor:not-allowed}
+.btn-outline{background:transparent;color:#1d4f9a;border:2px solid #1d4f9a}
+
+/* Login page styles (screenshot match) */
+.login-topbar{
+  background:#073b78; /* deep blue */
+  height:72px;
+  display:flex;
+  align-items:center;
+  padding:0 28px;
+}
+.login-topbar img{ width:36px; height:36px }
+
+.login-page{ min-height: calc(100vh - 72px); background: #f3efef; }
+.login-center{ display:flex; justify-content:center; align-items:flex-start; padding:48px 16px }
+.login-card{ width:420px; background:#073b78; color:#fff; border-radius:12px; padding:36px 36px 28px; box-shadow:0 4px 24px rgba(0,0,0,0.12) }
+.login-title{ text-align:center; margin:0 0 18px; font-weight:500; font-size:20px }
+.login-title strong{ display:block; font-size:28px; margin-top:6px }
+
+.login-form .form-row{ margin-bottom:12px; display:flex; align-items:center }
+.input-with-icon{ position:relative }
+.input-with-icon .icon{ position:absolute; left:14px; top:50%; transform:translateY(-50%); opacity:.9 }
+.input-with-icon .icon.eye{ right:12px; left:auto; border:none; background:transparent; cursor:pointer }
+.input{ width:100%; padding:12px 14px 12px 44px; border-radius:10px; border:0; outline:none; box-sizing:border-box }
+.input:disabled{ opacity:.6 }
+
+.link-forgot{ color:#dbe9ff; font-size:13px; text-decoration:underline }
+.link-signup{ display:inline-block; margin-top:6px; color:#e6f44a; font-weight:600 }
+
+.btn{ padding:10px 18px; border-radius:28px; border:0; background:#0a7; color:#fff; cursor:pointer }
+.btn[disabled]{ opacity:.6; cursor:default }
+.btn-outline{ background:transparent; border:3px solid #fff; padding:10px 34px; font-weight:700 }
+.login-btn{ font-size:18px }
+
+/* make inputs look white on the blue card */
+.login-card .input{ background:#fff }
+
+@media (max-width:480px){
+  .login-card{ width:94%; padding:28px }
+  .login-title strong{ font-size:22px }
+}
+
+/* Perfil screen styles */
+.profile-card{ display:flex; gap:0; max-width:980px; margin:12px auto; align-items:stretch }
+.profile-left-panel{ background:var(--blue); color:#fff; padding:28px 28px 28px 24px; width:360px; border-radius:10px 0 0 10px; position:relative }
+.profile-back-arrow{ position:absolute; left:12px; top:12px; font-size:20px }
+.profile-panel-title{ text-align:center; margin:6px 0 18px; font-size:26px }
+.profile-avatar-wrap{ display:flex; flex-direction:column; align-items:center; gap:10px }
+.big-avatar{ width:160px; height:160px; border-radius:80px; background:linear-gradient(180deg,#ddd,#bbb); border:8px solid rgba(255,255,255,0.08) }
+.profile-role{ font-size:14px; opacity:0.95 }
+.profile-name{ margin:12px 0 0; text-align:center; font-size:20px }
+
+.profile-right-panel{ background:#d6d6d6; padding:20px 28px; border-radius:0 10px 10px 0; flex:1 }
+.form-column{ max-width:520px; margin:0 auto }
+.form-column label{ display:block; font-weight:700; margin-top:12px; margin-bottom:6px }
+.input-edit-row{ display:flex; align-items:center; gap:8px }
+.input-edit-row .input{ flex:1; padding:8px 10px; border-radius:8px; border:2px solid #1d4f9a; background:#fff }
+.icon-edit{ background:transparent;border:none;cursor:pointer;font-size:16px;color:#123b6f }
+.link-small{ margin-left:8px; font-size:13px; color:#123b6f }
+.two-columns{ display:flex; gap:12px }
+.two-columns > div{ flex:1 }
+.save-btn{ background:var(--blue); color:#fff; border-radius:10px; padding:10px 28px }
+
+@media (max-width:920px){
+  .profile-card{ flex-direction:column }
+  .profile-left-panel{ width:100%; border-radius:10px 10px 0 0 }
+  .profile-right-panel{ border-radius:0 0 10px 10px }
+}
+
+/* layout collapsed (hide sidebar) */
+.layout.collapsed .sidebar{width:0;transform:translateX(-100%);padding:0;border-right:0}
+.layout.collapsed .content{margin-left:0}
+.table{width:100%;border-collapse:collapse;background:#fff;border-radius:10px;overflow:hidden}
+.table th,.table td{border-bottom:1px solid #e7e7e7;padding:10px;text-align:left}
+.table th{background:#f7f7f7}
+.radio-group{display:flex;gap:18px}
+
+.profile-header{display:flex;gap:24px}
+.profile-left{width:300px;background:#123b6f;color:#fff;border-radius:12px;padding:16px;text-align:center}
+.profile-left .big-avatar{width:140px;height:140px;background:#fff3;border-radius:50%;margin:12px auto}
+.profile-right{flex:1;background:#d9dbdf;border-radius:12px;padding:16px}
