@@ -37,6 +37,26 @@ async function main() {
     }
     console.log('Seeded class and students')
   }
+
+  // Seed default difficulties
+  const diffs = ['Fácil','Médio','Difícil']
+  for (const type of diffs) {
+    const existsDiff = await (prisma as any).difficulty.findFirst({ where: { type } })
+    if (!existsDiff) await (prisma as any).difficulty.create({ data: { type } })
+  }
+
+  // Seed a sample project with milestones
+  if (klass) {
+    const owner = await prisma.user.findFirst({ where: { role: 'ADMIN' } })
+    if (owner) {
+      const existing = await (prisma as any).project.findFirst({ where: { classId: klass.id, title: 'Projeto Integrador' } })
+      if (!existing) {
+        const proj = await (prisma as any).project.create({ data: { classId: klass.id, ownerId: owner.id, title: 'Projeto Integrador', description: 'Integração de conteúdos', type: 'MULTIDISCIPLINARY', status: 'PLANNING' } })
+        await (prisma as any).projectMilestone.create({ data: { projectId: proj.id, title: 'Definição do escopo' } })
+        await (prisma as any).projectMilestone.create({ data: { projectId: proj.id, title: 'Apresentação final' } })
+      }
+    }
+  }
 }
 
 main()

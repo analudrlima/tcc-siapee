@@ -25,6 +25,8 @@ model User {
   activities Activity[]
   tokens     RefreshToken[]
   decidedRequests SignupRequest[] @relation("UserDecisions")
+  elaborations Elaboration[]
+  ownedProjects Project[]
 }
 
 model Student {
@@ -32,6 +34,19 @@ model Student {
   name       String
   email      String?           @unique
   registryId String?           @unique // matrícula opcional
+  photoUrl   String?
+  birthDate  DateTime?         // data_nasc
+  phone      String?           // fone_contato
+  photo      String?           // foto (BLOB)
+  isTeacher  Boolean           @default(false) // is_professor
+  addressId  String?           // id_endereco
+  genderId   String?           // id_genero
+  address    Address?          @relation(fields: [addressId], references: [id])
+  gender     Gender?           @relation(fields: [genderId], references: [id])
+  comorbidities String?         // comorbidade
+  allergies     String?         // alergia
+  medications   String?         // medicacao
+  observations  String?         // obs
   createdAt  DateTime          @default(now())
   updatedAt  DateTime          @updatedAt
 
@@ -52,6 +67,7 @@ model Class {
   attendance   AttendanceDay[]
   plannings    Planning[]
   activities   Activity[]
+  projects     Project[]
 }
 
 model Enrollment {
@@ -114,10 +130,25 @@ model Activity {
   description String?
   dueDate     DateTime?
   maxScore    Float       @default(10)
+  // Campos adicionais alinhados ao DER (atividade)
+  discipline   String?    // disciplinas
+  topic        String?    // tema
+  methodology  String?    // metodologia
+  explanation  String?    // explicacao
+  content      String?    // conteudo
+  indication   String?    // indicacao
+  records      String?    // registros
+  observations String?    // obs
+  difficultyId String?
+  category     ActivityCategory @default(SUBJECT)
+  createdAt    DateTime   @default(now())
+  updatedAt    DateTime   @updatedAt
 
   class   Class @relation(fields: [classId], references: [id], onDelete: Cascade)
   teacher User  @relation(fields: [teacherId], references: [id], onDelete: Restrict)
   grades  ActivityGrade[]
+  difficulty Difficulty? @relation(fields: [difficultyId], references: [id])
+  elaborations Elaboration[]
 }
 
 model ActivityGrade {
@@ -183,4 +214,103 @@ enum SignupStatus {
   PENDING
   APPROVED
   REJECTED
+}
+
+// Dificuldade (grau_dificuldade)
+model Difficulty {
+  id   String @id @default(cuid())
+  type String
+
+  activities Activity[]
+}
+
+// Elabora (anotações/relato de desenvolvimento por atividade e usuário)
+model Elaboration {
+  id         String   @id @default(cuid())
+  activityId String
+  userId     String
+  text       String   // desenvolvimento
+  createdAt  DateTime @default(now())
+
+  activity Activity @relation(fields: [activityId], references: [id], onDelete: Cascade)
+  user     User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([activityId])
+  @@index([userId])
+}
+
+// Categoria de atividade para diferenciar matéria/projetos/multidisciplinares
+enum ActivityCategory {
+  SUBJECT
+  MULTIDISCIPLINARY
+  PROJECT_SUBJECT
+  PROJECT_MULTIDISCIPLINARY
+}
+
+// Projetos dedicados (quando requisitos divergem de Activity)
+model Project {
+  id          String       @id @default(cuid())
+  classId     String
+  ownerId     String       // criador/responsável
+  title       String
+  description String?
+  type        ProjectType  @default(SUBJECT)
+  status      ProjectStatus @default(PLANNING)
+  audience    String?      // público-alvo
+  startDate   DateTime?
+  endDate     DateTime?
+  attachments Json?        // lista simples de anexos (urls/nomes)
+  createdAt   DateTime     @default(now())
+  updatedAt   DateTime     @updatedAt
+
+  class   Class @relation(fields: [classId], references: [id], onDelete: Cascade)
+  owner   User  @relation(fields: [ownerId], references: [id], onDelete: Restrict)
+  milestones ProjectMilestone[]
+}
+
+model ProjectMilestone {
+  id        String   @id @default(cuid())
+  projectId String
+  title     String
+  dueDate   DateTime?
+  done      Boolean  @default(false)
+  notes     String?
+
+  project Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
+}
+
+enum ProjectStatus {
+  PLANNING
+  IN_PROGRESS
+  COMPLETED
+  ON_HOLD
+  CANCELLED
+}
+
+enum ProjectType {
+  SUBJECT
+  MULTIDISCIPLINARY
+}
+
+// Endereço (endereco)
+model Address {
+  id          String @id @default(cuid())
+  street      String // rua
+  number      Int    // numero
+  complement  String? // complemento
+  neighborhood String // bairro
+  city        String // cidade
+  state       String // estado
+  country     String @default("Brasil") // pais
+  zipCode     String // cep
+
+  students Student[]
+}
+
+// Gênero (genero)
+model Gender {
+  id          String @id @default(cuid())
+  description String // descricao
+
+  students Student[]
 }

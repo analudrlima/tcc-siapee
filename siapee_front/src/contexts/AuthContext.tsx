@@ -1,7 +1,7 @@
 import React, { createContext, useContext, useEffect, useMemo, useState } from 'react'
 import { api } from '../services/api'
 
-type User = { id: string; name: string; role: 'ADMIN'|'TEACHER'|'SECRETARY' }
+type User = { id: string; name: string; role: 'ADMIN'|'TEACHER'|'SECRETARY'; avatarUrl?: string|null }
 type Tokens = { accessToken: string; refreshToken: string }
 
 type AuthContextType = {

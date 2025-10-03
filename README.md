@@ -1,4 +1,6 @@
-# SIAPEE - Setup inicial
+# SIAPEE
+
+Sistema de Apoio Pedagógico para APAE – protótipo funcional com backend (Node/Express/Prisma) e frontend (React/Vite/TS).
 
 Este repositório contém dois projetos:
 
@@ -51,32 +53,118 @@ npm run dev
 
 - App: `http://localhost:5173`
 
-## Estrutura sugerida
+## Telas implementadas nesta fase
 
-- Auth (JWT + refresh tokens)
-- Usuários (Admin, Professor)
-- Turmas, Alunos, Matrículas
-- Frequência (chamada por dia)
-- Planejamento e Atividades
-- Avaliações e Lançamento de notas
-- Perfil do usuário, upload de avatar
+As imagens do protótipo (vide pasta anexada) foram seguidas para montar a navegação e o layout. O que está pronto:
 
-## Próximos passos
+- Login (estilizado conforme protótipo) – `GET /api/auth/login`
+- Solicitar cadastro (página pública) – envia para `POST /api/signup/request`
+- Área logada com Topbar, Sidebar e Layout responsivo
+  - Turmas – lista turmas e alunos matriculados
+  - Registro de faltas – Diário/Observações/Históricos – criação automática do dia, marcação Presente/Ausente/Justificada e observações por aluno; histórico por período
+  - Planejamento Anual – selecionar turma/disciplinas e salvar conteúdo (por disciplina)
+  - Planejamento Semestral – estrutura equivalente ao Anual por semestre (por disciplina)
+  - Planejamento Individual – funcional (por aluno e disciplina)
+  - Perfil do usuário – visualização e edição de nome
+  - Admin/Secretaria – aprovação de solicitações de cadastro
 
-- Implementar schema Prisma completo e migrações
-- Criar rotas REST com validação
-- Middlewares de autenticação e RBAC básico
-- Páginas e componentes do frontend conforme protótipo
-- Testes (unitário e integração)
+Outras telas implementadas nesta fase:
 
-```text
-Estrutura MVP esperada:
-- Login/Logout e refresh
-- CRUD de turma, aluno e matrícula
-- Marcação de frequência por data
-- Cadastro de atividades e notas
-```
+- Atividades – Matéria (CRUD completo)
+- Atividades – Multidisciplinares (funcional, reutiliza a UI de Atividades)
+- Avaliações – Desenvolvimento do Aluno (funcional, armazena via Planejamento Individual)
+- Avaliações – Evolutivas (funcional, armazena via Planejamento Individual)
+- Projetos – Matéria (funcional, reutiliza a UI de Atividades)
+- Projetos – Multidisciplinares (funcional, reutiliza a UI de Atividades)
+
+## Ajustes de Design realizados
+
+- Barra superior (Topbar) unificada em 72px, degrade azul, menu de perfil com clique fora/Escape
+- Sidebar agrupada por seções e links conforme o protótipo
+- Correções no CSS (remoção de duplicidades, altura do layout corrigida para 72px, variáveis e cores)
+- Componentes utilitários: `panel`, `card`, `table`, `btn` com estados
+- Tela de Login reestilizada para casar com o mock
+- Responsividade nas telas de Perfil e geral
+
+## API (MVP)
+
+- Auth
+  - `POST /api/auth/login` – retorna `accessToken`, `refreshToken` e `user`
+  - `POST /api/auth/refresh` – troca refresh por novo access
+  - `POST /api/auth/logout` – invalida refresh
+- Usuário
+  - `GET /api/users/me`
+  - `PUT /api/users/me` – alterar nome
+- Cadastro (fluxo de aprovação)
+  - `POST /api/signup/request`
+  - `GET /api/signup/requests` (ADMIN/SECRETARY)
+  - `POST /api/signup/requests/:id/decide` (ADMIN/SECRETARY)
+- Turmas e planejamento/frequência
+  - `GET /api/classes`
+  - `GET /api/classes/:id`
+  - `GET /api/classes/:id/attendance?date=YYYY-MM-DD` – cria o dia se necessário
+  - `PUT /api/attendance/days/:dayId/records` – salva lista de presenças
+  - `GET /api/classes/:id/attendance/history?from=YYYY-MM-DD&to=YYYY-MM-DD` – histórico por período
+  - `GET /api/attendance/days/:dayId/records` – registros do dia com turma/alunos
+  - `PATCH /api/attendance/days/:dayId/records/:studentId` – editar status/observação do aluno
+  - `GET /api/classes/:id/planning?kind=ANNUAL|SEMESTER_1|SEMESTER_2|INDIVIDUAL&discipline=...&details=...` – filtra por turma, tipo e, opcionalmente, disciplina e detalhes
+    - Para Anual/Semestral: `discipline` define a disciplina; `details` pode ser usado para semestre (ex.: `1` ou `2`).
+    - Para Individual: `discipline` define a disciplina; `details` define o escopo do registro individual (ex.: `alunoId` ou chaves prefixadas `dev:alunoId`/`evo:alunoId` para avaliações de Desenvolvimento/Evolutivas).
+  - `PUT /api/classes/:id/planning` – salva planejamento
+    - Corpo: `{ kind, title, content, discipline?, details?, lessonsPlanned? }`
+  - `GET /api/classes/:id/activities` – listar atividades por turma
+  - `POST /api/classes/:id/activities` – criar atividade
+  - `PUT /api/activities/:activityId` – editar atividade
+  - `DELETE /api/activities/:activityId` – excluir atividade
+  - `GET /api/activities/:activityId/grades` – listar notas
+  - `PUT /api/activities/:activityId/grades` – salvar notas em lote
+
+## O que falta / Próximos Passos
+
+Funcionalidades:
+
+- Relatórios de Faltas (consolidados) e exportações
+- Observações avançadas por aluno/data (relatórios e filtros)
+- Anexos em Atividades/Projetos
+- Perfil: upload de foto e endereço/telefone completos
+- RBAC fino por papel (Admin/Secretaria/Professor)
+- Melhorar seed e migrações Prisma conforme DER completo
+
+Design/UX:
+
+- Polir tabelas e formulários (validações e feedbacks)
+- Tema escuro opcional
+- Acessibilidade (foco visível, atalhos, ARIA)
+
+DevOps:
+
+- Pipeline de CI para lint/build/test
+- Opcional: silenciar aviso ESM do Cypress renomeando `cypress.config.ts` para `cypress.config.mts`
+
+## Testes automatizados
+
+### Backend (Vitest + Supertest)
+
+- Rodar na pasta `siapee_server`:
+  - `npm test` — executa a suíte com mocks do Prisma/JWT/Bcrypt.
+- Cobertura atual (33 testes): autenticação, usuários, turmas, frequência (diário/histórico/dia/patch), planejamento (ANUAL/SEMESTRAL/INDIVIDUAL com filtros `discipline` e `details`) e atividades (CRUD/grades), além do fluxo de cadastro.
+
+### Frontend E2E (Cypress)
+
+- Requisitos: Vite dev rodando em `http://localhost:5173`.
+- Rodar na pasta `siapee_front`:
+  - `npm run cypress:open` — abre a UI do Cypress.
+  - `npm run cypress:run` — executa em linha de comando.
+- Especificações cobertas:
+  - `attendance.cy.ts`: Diário/Observações/Históricos — valida inclusive que o PUT envia um array conforme a API.
+  - `planning.cy.ts`: Planejamento Anual/Semestral por disciplina e semestre.
+  - `individual.cy.ts`: Planejamento Individual por aluno e disciplina.
+  - `avaliacoes.cy.ts`: Avaliações de Desenvolvimento/Evolutivas via Planejamento Individual (`details` prefixados `dev:`/`evo:`).
+  - `activities.cy.ts`: Atividades por turma (listar/criar/excluir + notas).
+  - `atividades_multi.cy.ts`: Atividades Multidisciplinares (reutilização da UI de Atividades).
+  - `projetos.cy.ts`: Projetos (Matéria/Multidisciplinares) reutilizando a UI de Atividades.
+- As chamadas à API são simuladas com `cy.intercept`, e tokens falsos são definidos no `localStorage` (`siapee_tokens`) para passar pelo `ProtectedRoute`. Para rotas idênticas em sequência, os intercepts são registrados de forma encadeada para evitar flakiness.
 
 ---
 
-Para dúvidas ou ajustes do setup, consulte os arquivos `.env.example` e o `docker-compose.yml`.
+Para dúvidas ou ajustes do setup, consulte os arquivos `.env.example` e `docker-compose.yml`.
