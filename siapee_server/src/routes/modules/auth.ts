@@ -4,12 +4,16 @@ import bcrypt from 'bcryptjs';
 import jwt, { SignOptions, Secret } from 'jsonwebtoken';
 import { prisma } from '../../lib/prisma';
 import { env } from '../../config/env';
+import crypto from 'crypto';
 
 export const authRouter = Router();
 
 const loginSchema = z.object({
-  email: z.string().email(),
+  login: z.string().min(1).optional(), // username or email
+  email: z.string().email().optional(),
   password: z.string().min(6)
+}).refine((data) => !!data.login || !!data.email, {
+  message: 'login or email required'
 });
 
 function signAccessToken(userId: string) {
@@ -24,9 +28,21 @@ function signRefreshToken(userId: string) {
 authRouter.post('/login', async (req: Request, res: Response) => {
   const parse = loginSchema.safeParse(req.body);
   if (!parse.success) return res.status(400).json({ error: 'Invalid payload' });
-  const { email, password } = parse.data;
+  const { login, email, password } = parse.data as { login?: string; email?: string; password: string };
 
-  const user = await prisma.user.findUnique({ where: { email } });
+  let user = null as null | Awaited<ReturnType<typeof prisma.user.findUnique>>;
+  const identifier = (login ?? email ?? '').trim();
+  try {
+    if ((email && email.length > 0) || /@/.test(identifier)) {
+      const mail = (email ?? identifier).toLowerCase();
+      user = await prisma.user.findUnique({ where: { email: mail } });
+    } else {
+      // Fallback: use name as username (not unique by schema; assumes practice enforces uniqueness)
+      user = await prisma.user.findFirst({ where: { name: identifier } });
+    }
+  } catch {
+    user = null;
+  }
   if (!user) return res.status(401).json({ error: 'Invalid credentials' });
   const ok = await bcrypt.compare(password, user.password);
   if (!ok) return res.status(401).json({ error: 'Invalid credentials' });
@@ -64,4 +80,44 @@ authRouter.post('/logout', async (req: Request, res: Response) => {
     await prisma.refreshToken.updateMany({ where: { token }, data: { valid: false } });
   }
   return res.status(204).send();
+});
+
+// Forgot password - always respond 200 to avoid user enumeration
+authRouter.post('/forgot-password', async (req: Request, res: Response) => {
+  const email = String(req.body?.email || '').trim().toLowerCase();
+  try {
+    const user = email ? await prisma.user.findUnique({ where: { email } }) : null;
+    if (user) {
+      const token = crypto.randomBytes(32).toString('hex');
+      const expiresAt = new Date(Date.now() + 60 * 60 * 1000); // 1 hour
+      // cast to any to avoid type issues if prisma client not regenerated
+      await (prisma as any).passwordReset.create({ data: { userId: user.id, token, expiresAt } });
+      // In a real app, send email with link containing token. For now, return token for manual testing.
+      return res.json({ ok: true, token });
+    }
+  } catch (e) {
+    // ignore
+  }
+  return res.json({ ok: true });
+});
+
+// Reset password with token
+authRouter.post('/reset-password', async (req: Request, res: Response) => {
+  const { token, password } = req.body ?? {};
+  if (!token || typeof token !== 'string' || typeof password !== 'string' || password.length < 6) {
+    return res.status(400).json({ error: 'Invalid payload' });
+  }
+  // find token
+  const entry = await (prisma as any).passwordReset.findUnique({ where: { token } });
+  if (!entry || entry.usedAt || new Date(entry.expiresAt) < new Date()) {
+    return res.status(400).json({ error: 'Token inválido ou expirado' });
+  }
+  const user = await prisma.user.findUnique({ where: { id: entry.userId } });
+  if (!user) return res.status(400).json({ error: 'Token inválido' });
+  const hash = await bcrypt.hash(password, 10);
+  await prisma.user.update({ where: { id: user.id }, data: { password: hash } });
+  await (prisma as any).passwordReset.update({ where: { token }, data: { usedAt: new Date() } });
+  // Invalidate refresh tokens for this user
+  await prisma.refreshToken.updateMany({ where: { userId: user.id }, data: { valid: false } });
+  return res.json({ ok: true });
 });

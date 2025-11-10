@@ -86,7 +86,7 @@ Outras telas implementadas nesta fase:
 - Tela de Login reestilizada para casar com o mock
 - Responsividade nas telas de Perfil e geral
 
-## API (MVP)
+## API (MVP + extras para substituir Argus)
 
 - Auth
   - `POST /api/auth/login` – retorna `accessToken`, `refreshToken` e `user`
@@ -102,6 +102,9 @@ Outras telas implementadas nesta fase:
 - Turmas e planejamento/frequência
   - `GET /api/classes`
   - `GET /api/classes/:id`
+  - `GET /api/classes/:id/teachers` — professores alocados na turma
+  - `POST /api/classes/:id/teachers` (ADMIN/SECRETARIA) — atribuir professor e disciplinas
+  - `DELETE /api/classes/:id/teachers/:teacherId` (ADMIN/SECRETARIA) — remover alocação
   - `GET /api/classes/:id/attendance?date=YYYY-MM-DD` – cria o dia se necessário
   - `PUT /api/attendance/days/:dayId/records` – salva lista de presenças
   - `GET /api/classes/:id/attendance/history?from=YYYY-MM-DD&to=YYYY-MM-DD` – histórico por período
@@ -118,17 +121,39 @@ Outras telas implementadas nesta fase:
   - `DELETE /api/activities/:activityId` – excluir atividade
   - `GET /api/activities/:activityId/grades` – listar notas
   - `PUT /api/activities/:activityId/grades` – salvar notas em lote
+  - `GET /api/difficulties` – listar dificuldades para categorização
+
+- Projetos
+  - `GET /api/classes/:id/projects` — listar
+  - `POST /api/classes/:id/projects` — criar
+  - `PUT /api/projects/:projectId` — atualizar
+  - `DELETE /api/projects/:projectId` — excluir
+  - `GET /api/projects/:projectId/milestones` — marcos
+  - `POST /api/projects/:projectId/milestones` — criar marco
+  - `PUT /api/projects/:projectId/milestones/:milestoneId` — atualizar marco
+  - `DELETE /api/projects/:projectId/milestones/:milestoneId` — excluir marco
+
+- Relatórios (exportação CSV)
+  - `GET /api/reports/attendance.csv?classId=...&from=YYYY-MM-DD&to=YYYY-MM-DD`
+  - `GET /api/reports/grades.csv?classId=...`
+
+- Operações/Resiliência
+  - `GET /api/health` — status da API e conexão com o banco
+  - `POST /api/admin/rollover/preview` — prévia de criação das turmas do próximo ano (copia nomes/códigos/disciplinas)
+  - `POST /api/admin/rollover/commit` — cria turmas do próximo ano (sem matrículas)
 
 ## O que falta / Próximos Passos
 
 Funcionalidades:
 
-- Relatórios de Faltas (consolidados) e exportações
+- Consolidados de Faltas (pivot/totais) e exportações em PDF
 - Observações avançadas por aluno/data (relatórios e filtros)
-- Anexos em Atividades/Projetos
+- Anexos em Atividades/Projetos (storage S3/Azure Blob)
 - Perfil: upload de foto e endereço/telefone completos
-- RBAC fino por papel (Admin/Secretaria/Professor)
+- RBAC fino por papel (Admin/Secretaria/Professor) com políticas por disciplina/turma
 - Melhorar seed e migrações Prisma conforme DER completo
+- Portal da família (visualização de presenças e notas)
+- Auditoria navegável (filtros por entidade/usuário/período)
 
 Design/UX:
 
@@ -140,6 +165,7 @@ DevOps:
 
 - Pipeline de CI para lint/build/test
 - Opcional: silenciar aviso ESM do Cypress renomeando `cypress.config.ts` para `cypress.config.mts`
+- Backups programados do Postgres (pg_dump) e restauração
 
 ## Testes automatizados
 

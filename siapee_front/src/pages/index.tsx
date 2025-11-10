@@ -1,0 +1,6 @@
+export { Dashboard } from './Dashboard'
+export { Login } from './Login'
+export { Perfil } from './Perfil'
+export { NotFound } from './NotFound'
+export { default as ForgotPassword } from './ForgotPassword'
+export { default as ResetPassword } from './ResetPassword'

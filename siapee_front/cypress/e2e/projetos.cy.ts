@@ -8,12 +8,12 @@ describe('Projetos', () => {
     })
     cy.intercept('GET', '**/api/users/me', { statusCode:200, body:{ id:'t', name:'Prof', role:'TEACHER' } }).as('me')
     cy.intercept('GET', '**/api/classes', { statusCode:200, body:[{ id:'c1', name:'Turma 1', code:'T1', year:2025 }] }).as('classes')
-    cy.intercept('GET', '**/api/classes/c1/activities', { statusCode:200, body:[{ id:'a1', title:'Projeto 1', maxScore: 10 }] }).as('list')
-    cy.intercept('POST', '**/api/classes/c1/activities', (req) => {
+  cy.intercept('GET', '**/api/classes/c1/projects*', { statusCode:200, body:[{ id:'p1', title:'Projeto 1', status:'PLANNING' }] }).as('list')
+    cy.intercept('POST', '**/api/classes/c1/projects', (req) => {
       expect(req.body.title).to.eq('Projeto Novo')
-      req.reply({ statusCode:201, body:{ id:'a2', title:'Projeto Novo', maxScore: 10 } })
+      req.reply({ statusCode:201, body:{ id:'p2', title:'Projeto Novo', status:'PLANNING' } })
     }).as('create')
-    cy.intercept('DELETE', '**/api/activities/a2', { statusCode:204, body:{} }).as('delete')
+  cy.intercept('DELETE', '**/api/projects/p2', { statusCode:204, body:{} }).as('delete')
 
     cy.visit('/projetos/materia')
     cy.wait('@me')
@@ -21,9 +21,9 @@ describe('Projetos', () => {
   cy.get('select').first().select('Turma 1')
   cy.wait('@list')
   // After initial list returned, register the next list to include the new item
-  cy.intercept('GET', '**/api/classes/c1/activities', { statusCode:200, body:[{ id:'a1', title:'Projeto 1', maxScore: 10 }, { id:'a2', title:'Projeto Novo', maxScore: 10 }] }).as('list2')
-    cy.get('input[placeholder="Título"]').type('Projeto Novo')
-  cy.contains('Adicionar').click()
+  cy.intercept('GET', '**/api/classes/c1/projects*', { statusCode:200, body:[{ id:'p1', title:'Projeto 1', status:'PLANNING' }, { id:'p2', title:'Projeto Novo', status:'PLANNING' }] }).as('list2')
+    cy.get('[data-cy=project-title]').type('Projeto Novo')
+    cy.get('[data-cy=project-add]').click()
   cy.wait('@create')
   cy.wait('@list2')
   cy.contains('Projeto Novo').should('exist')

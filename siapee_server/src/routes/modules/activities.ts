@@ -1,6 +1,7 @@
 import { Router, Request, Response } from 'express'
 import { prisma } from '../../lib/prisma'
 import { authenticate, AuthRequest } from '../../middlewares/authenticate'
+import { logAudit } from '../../lib/audit'
 
 export const activitiesRouter = Router()
 
@@ -37,6 +38,7 @@ activitiesRouter.post('/classes/:id/activities', authenticate, async (req: AuthR
     } as any)
   } as any)
   res.status(201).json(created)
+  logAudit({ userId: req.userId, action: 'ACTIVITY_CREATE', entity: 'Activity', entityId: created.id, metadata: { classId } })
 })
 
 // update activity
@@ -59,12 +61,14 @@ activitiesRouter.put('/activities/:activityId', authenticate, async (req: Reques
     } as any)
   } as any)
   res.json(updated)
+  logAudit({ action: 'ACTIVITY_UPDATE', entity: 'Activity', entityId: updated.id })
 })
 
 // delete activity
 activitiesRouter.delete('/activities/:activityId', authenticate, async (req: Request, res: Response) => {
   const { activityId } = req.params
-  await prisma.activity.delete({ where: { id: activityId } })
+  const deleted = await prisma.activity.delete({ where: { id: activityId } })
+  logAudit({ action: 'ACTIVITY_DELETE', entity: 'Activity', entityId: deleted.id })
   res.status(204).send()
 })
 
@@ -85,6 +89,7 @@ activitiesRouter.put('/activities/:activityId/grades', authenticate, async (req:
       create: { activityId, studentId: it.studentId, score: it.score, feedback: it.feedback }
     })
   }
+  logAudit({ action: 'GRADES_BULK_SAVE', entity: 'Activity', entityId: activityId, metadata: { count: items.length } })
   res.status(204).send()
 })
 
@@ -106,4 +111,5 @@ activitiesRouter.post('/activities/:activityId/elaborations', authenticate, asyn
   const { text } = req.body ?? {}
   const created = await (prisma as any).elaboration.create({ data: { activityId, userId: req.userId!, text } })
   res.status(201).json(created)
+  logAudit({ userId: req.userId, action: 'ELABORATION_CREATE', entity: 'Elaboration', entityId: created.id, metadata: { activityId } })
 })

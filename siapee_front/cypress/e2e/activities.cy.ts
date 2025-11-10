@@ -14,9 +14,9 @@ describe('Atividades por matéria', () => {
     cy.intercept('GET', '**/api/classes', { statusCode:200, body:[{ id:'c1', name:'Turma 1', code:'T1', year:2025 }] })
   })
 
-  it('lista, cria e exclui atividade', () => {
+    it('lista, cria e exclui atividade', () => {
     // Lista inicial vazia
-    cy.intercept('GET', '**/api/classes/c1/activities', { statusCode:200, body: [] }).as('list1')
+    cy.intercept('GET', '**/api/classes/c1/activities*', { statusCode:200, body: [] }).as('list1')
 
     cy.visit('/atividades/materia')
     cy.get('select').first().select('Turma 1')
@@ -30,20 +30,20 @@ describe('Atividades por matéria', () => {
       expect(req.body.maxScore).to.be.a('number')
       req.reply({ statusCode:201, body:{ id:'a1', classId:'c1', title:'Prova 1', dueDate: null, maxScore: 10 } })
     }).as('createAct')
-    cy.intercept('GET', '**/api/classes/c1/activities', { statusCode:200, body: [{ id:'a1', title:'Prova 1', dueDate:null, maxScore:10 }] }).as('list2')
+  cy.intercept('GET', '**/api/classes/c1/activities*', { statusCode:200, body: [{ id:'a1', title:'Prova 1', dueDate:null, maxScore:10 }] }).as('list2')
 
-    cy.get('input[placeholder="Título"]').type('Prova 1')
-    cy.get('input[placeholder="Descrição"]').type('Cap 1')
-    cy.get('input[type="date"]').clear() // optional date
-    cy.get('input[type="number"]').clear().type('10')
-    cy.contains('Adicionar').click()
+      cy.get('[data-cy=activity-title]').type('Prova 1')
+      cy.get('[data-cy=activity-description]').type('Cap 1')
+      cy.get('[data-cy=activity-due]').clear() // optional date
+      cy.get('[data-cy=activity-max]').clear().type('10')
+      cy.get('[data-cy=activity-add]').click()
     cy.wait('@createAct')
     cy.wait('@list2')
 
     // Excluir
     cy.intercept('DELETE', '**/api/activities/a1', { statusCode:204, body: '' }).as('deleteAct')
-    cy.intercept('GET', '**/api/classes/c1/activities', { statusCode:200, body: [] }).as('list3')
-    cy.contains('Excluir').click()
+  cy.intercept('GET', '**/api/classes/c1/activities*', { statusCode:200, body: [] }).as('list3')
+      cy.get('[data-cy=activity-delete]').click()
     cy.wait('@deleteAct')
     cy.wait('@list3')
   })

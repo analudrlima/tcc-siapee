@@ -1,499 +1,42 @@
-import { Routes, Route, Link, NavLink } from 'react-router-dom'
+import { Routes, Route, Link, NavLink, Navigate } from 'react-router-dom'
 import SignupRequestPage from './pages/SignupRequest'
 import { useEffect, useMemo, useState } from 'react'
 import { useAuth } from './contexts/AuthContext'
 import { useNavigate } from 'react-router-dom'
 import { ProtectedRoute } from './components/ProtectedRoute'
 import { api } from './services/api'
-import logo from './assets/logo.svg'
+import { useClasses, useStudents } from './hooks/useClasses'
 import { useRef } from 'react'
 
-// Auto-resize textarea utility
-const autoResizeTextarea = (element: HTMLTextAreaElement) => {
-  element.style.height = 'auto';
-  element.style.height = Math.max(element.scrollHeight, 100) + 'px';
-}
+// Import layout components
+import { Layout } from './components/layout'
 
-// Hook for auto-resizing textarea
-const useAutoResizeTextarea = (value: string) => {
-  const textareaRef = useRef<HTMLTextAreaElement>(null);
-  
-  useEffect(() => {
-    if (textareaRef.current) {
-      autoResizeTextarea(textareaRef.current);
-    }
-  }, [value]);
+// Import form components
+import { EditStudentForm, EditClassForm } from './components/forms'
 
-  const handleChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
-    autoResizeTextarea(e.target);
-    return e;
-  };
+// Import utilities
+import { autoResizeTextarea, useAutoResizeTextarea } from './utils/textarea'
+import toast from 'react-hot-toast'
 
-  return { textareaRef, handleChange };
-}
+// Import pages
+import { Dashboard, Login, Perfil, NotFound, ForgotPassword, ResetPassword } from './pages'
+import { AlunosMatriculas, AdminUsuarios } from './pages/admin'
+import { Turmas, AlunosPage } from './pages/academic'
 
-function Topbar({ onToggleSidebar }: { onToggleSidebar?: () => void }) {
-  const { user, logout } = useAuth()
-  const navigate = useNavigate()
-  const [menuOpen, setMenuOpen] = useState(false)
-  const wrapRef = useRef<HTMLDivElement | null>(null)
-
-  // close on click outside or Escape
-  useEffect(() => {
-    const onDoc = (e: MouseEvent) => {
-      if (!wrapRef.current) return
-      if (!wrapRef.current.contains(e.target as Node)) setMenuOpen(false)
-    }
-    const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') setMenuOpen(false) }
-    document.addEventListener('mousedown', onDoc)
-    document.addEventListener('keydown', onKey)
-    return () => { document.removeEventListener('mousedown', onDoc); document.removeEventListener('keydown', onKey) }
-  }, [])
-  return (
-    <header className="topbar">
-      <div className="topbar-left">
-        <button className="hamburger" onClick={() => onToggleSidebar && onToggleSidebar()} aria-label="Toggle menu">☰</button>
-        <div className="logo-box">
-          <img src={logo} alt="SIAPEE" />
-        </div>
-        <div className="brand-text">
-          <div className="brand-sub">APAE - Balneário Arroio do Silva</div>
-        </div>
-      </div>
-      <div className="topbar-right">
-        <div className="user-info">
-          <div className="user-name">{user?.name ?? 'Usuário'}</div>
-          <div className="user-role">{user?.role}</div>
-        </div>
-        <div className="profile-menu-wrap" ref={wrapRef}>
-          <button className="profile-trigger" onClick={() => setMenuOpen(v=>!v)} aria-expanded={menuOpen} aria-haspopup="true">
-            {user?.avatarUrl ? <img src={user.avatarUrl} alt={user?.name ?? 'avatar'} className="avatar-img"/> : <span className="avatar-circle" />}
-          </button>
-          {menuOpen && (
-            <div className="profile-dropdown" role="menu">
-              <Link to="/perfil" onClick={()=>setMenuOpen(false)} role="menuitem">Perfil</Link>
-              <button onClick={async ()=>{ setMenuOpen(false); await logout(); navigate('/login') }} role="menuitem">Sair</button>
-            </div>
-          )}
-        </div>
-      </div>
-    </header>
-  )
-}
-
-function Sidebar() {
-  const { user } = useAuth()
-  return (
-    <aside className="sidebar">
-      <div className="sidebar-inner">
-        <div className="nav-group">
-          <div className="nav-heading">Gerenciamento</div>
-          <NavLink className={({isActive}) => isActive ? 'link active' : 'link'} to="/turmas">Turmas</NavLink>
-          <NavLink className={({isActive}) => isActive ? 'link active' : 'link'} to="/alunos">Alunos</NavLink>
-          {/* Planejamento (unificado) */}
-          <NavLink className={({isActive}) => isActive ? 'link active' : 'link'} to="/planejamento">Planejamento</NavLink>
-          {/* Faltas (unificado) */}
-          <NavLink className={({isActive}) => isActive ? 'link active' : 'link'} to="/faltas">Registro de faltas</NavLink>
-        </div>
-        <div className="nav-group">
-          <div className="nav-heading">Acadêmico</div>
-          <NavLink className={({isActive}) => isActive ? 'link active' : 'link'} to="/atividades">Atividades</NavLink>
-          <NavLink className={({isActive}) => isActive ? 'link active' : 'link'} to="/avaliacoes">Avaliações</NavLink>
-          <NavLink className={({isActive}) => isActive ? 'link active' : 'link'} to="/projetos">Projetos</NavLink>
-        </div>
-        <div className="nav-group">
-          <div className="nav-heading">Minha Conta</div>
-          <NavLink className={({isActive}) => isActive ? 'link active' : 'link'} to="/perfil">Meu perfil</NavLink>
-        </div>
-        {(user?.role === 'ADMIN' || user?.role === 'SECRETARY') && (
-          <div className="nav-group">
-            <div className="nav-heading">Admin</div>
-            <NavLink className={({isActive}) => isActive ? 'link active' : 'link'} to="/admin/solicitacoes">Solicitações</NavLink>
-          </div>
-        )}
-      </div>
-    </aside>
-  )
-}
-function AdminSolicitacoes() {
-  const [items, setItems] = useState<any[]>([])
-  const [loading, setLoading] = useState(false)
-  const load = async () => {
-    setLoading(true)
-    try { const r = await api.get('/signup/requests'); setItems(r.data) } finally { setLoading(false) }
-  }
-  useEffect(() => { load() }, [])
-  const decide = async (id: string, approved: boolean) => {
-    await api.post(`/signup/requests/${id}/decide`, { approved })
-    await load()
-  }
-  return (
-    <Layout>
-      <h1 className="title">Solicitações de cadastro</h1>
-      <div className="panel">
-        {loading ? 'Carregando...' : (
-          <table className="table">
-            <thead><tr><th>Nome</th><th>Email</th><th>Papel</th><th>Status</th><th>Ações</th></tr></thead>
-            <tbody>
-              {items.map(it => (
-                <tr key={it.id}>
-                  <td>{it.name}</td>
-                  <td>{it.email}</td>
-                  <td>{it.roleRequested}</td>
-                  <td>{it.status}</td>
-                  <td>
-                    {it.status === 'PENDING' && (
-                      <>
-                        <button className="btn" onClick={()=>decide(it.id, true)}>Aprovar</button>
-                        <button className="btn btn-outline" style={{ marginLeft: 8 }} onClick={()=>decide(it.id, false)}>Rejeitar</button>
-                      </>
-                    )}
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        )}
-      </div>
-    </Layout>
-  )
-}
-
-export function Layout({ children }: { children: React.ReactNode }) {
-  const [sidebarOpen, setSidebarOpen] = useState(true)
-  return (
-    <>
-      <Topbar onToggleSidebar={() => setSidebarOpen(v => !v)} />
-      <div className={`layout ${sidebarOpen ? '' : 'collapsed'}`}>
-        <Sidebar />
-        <main className="content">{children}</main>
-      </div>
-    </>
-  )
-}
-
-function Login() {
-  const { login } = useAuth()
-  const navigate = useNavigate()
-  const [email, setEmail] = useState('')
-  const [username, setUsername] = useState('')
-  const [password, setPassword] = useState('')
-  const [loading, setLoading] = useState(false)
-  const [error, setError] = useState<string | null>(null)
-  const onSubmit = async (e: React.FormEvent) => {
-    e.preventDefault()
-    try {
-      setLoading(true); setError(null)
-  await login(email, password)
-  navigate('/')
-    } catch (err: any) {
-      setError('Falha ao entrar')
-    } finally {
-      setLoading(false)
-    }
-  }
-  return (
-    <div className="login-page">
-      <div className="login-topbar">
-        <img src={logo} alt="SIAPEE" />
-      </div>
-      <div className="login-center">
-        <div className="card login-card">
-          <h2 className="login-title">Bem-vindo(a),<br/><strong>Acesse sua conta!</strong></h2>
-          <form onSubmit={onSubmit} className="login-form">
-            <div className="form-row input-with-icon">
-              <span className="icon user">👤</span>
-              <input className="input" placeholder="Usuário" value={username} onChange={e=>setUsername(e.target.value)} />
-            </div>
-            <div className="form-row input-with-icon">
-              <span className="icon mail">✉️</span>
-              <input className="input" placeholder="E-mail" value={email} onChange={e=>setEmail(e.target.value)} />
-            </div>
-            <div className="form-row input-with-icon">
-              <span className="icon lock">🔒</span>
-              <input className="input" placeholder="Senha" type="password" value={password} onChange={e=>setPassword(e.target.value)} />
-              <button type="button" className="icon eye">👁️</button>
-            </div>
-            <div style={{ textAlign: 'center', marginTop: 6 }}>
-              <Link to="#" className="link-forgot">esqueci minha senha</Link>
-            </div>
-            {error && <div style={{ color: 'crimson', marginBottom: 8 }}>{error}</div>}
-            <div style={{ textAlign: 'center', marginTop: 12 }}>
-              <button className="btn btn-outline login-btn" disabled={loading} type="submit">Entrar</button>
-            </div>
-          </form>
-          <div style={{ marginTop: 14, textAlign: 'center', color: '#fff' }}>
-            <div>Ainda não tem uma conta?</div>
-            <Link to="/signup" className="link-signup">Solicite seu cadastro</Link>
-          </div>
-        </div>
-      </div>
-    </div>
-  )
-}
-
-function Perfil() {
-  const { user } = useAuth()
-  const [name, setName] = useState(user?.name ?? '')
-  const [email, setEmail] = useState('')
-  const [phone, setPhone] = useState('')
-  const [avatarUrl, setAvatarUrl] = useState<string | null>(user?.avatarUrl ?? null)
-  const [saving, setSaving] = useState(false)
-  const [msg, setMsg] = useState<string | null>(null)
-  const [showAddressModal, setShowAddressModal] = useState(false)
-  const [address, setAddress] = useState({
-    street: '',
-    number: '',
-    complement: '',
-    neighborhood: '',
-    city: '',
-    state: '',
-    zipCode: ''
-  })
-
-  useEffect(() => {
-    (async () => {
-      try {
-        const r = await api.get('/users/me')
-        setName(r.data.name)
-        setEmail(r.data.email)
-        setPhone(r.data.phone ?? '')
-        setAvatarUrl(r.data.avatarUrl ?? null)
-        // Simular dados de endereço
-        setAddress({
-          street: r.data.address?.street ?? 'Rua das Flores',
-          number: r.data.address?.number ?? '123',
-          complement: r.data.address?.complement ?? 'Apt 45',
-          neighborhood: r.data.address?.neighborhood ?? 'Centro',
-          city: r.data.address?.city ?? 'São Paulo',
-          state: r.data.address?.state ?? 'SP',
-          zipCode: r.data.address?.zipCode ?? '01234-567'
-        })
-      } catch {}
-    })()
-  }, [])
-
-  const save = async () => {
-    try { setSaving(true); setMsg(null)
-  const r = await api.put('/users/me', { name, email, phone })
-  setName(r.data.name)
-  setEmail(r.data.email)
-  setPhone(r.data.phone ?? '')
-      setMsg('Perfil atualizado')
-    } catch { setMsg('Falha ao salvar') } finally { setSaving(false) }
-  }
-
-  const saveAddress = async () => {
-    try {
-      // Simular salvamento do endereço
-      setMsg('Endereço atualizado com sucesso')
-      setShowAddressModal(false)
-    } catch {
-      setMsg('Falha ao salvar endereço')
-    }
-  }
-
-  return (
-    <Layout>
-      <h1 className="title">Perfil</h1>
-      <div className="profile-card">
-        <div className="profile-left-panel">
-          <div className="profile-avatar-wrap">
-            {avatarUrl ? <img src={avatarUrl} alt="avatar" className="big-avatar" /> : <div className="big-avatar" />}
-            <div className="profile-role">{user?.role === 'TEACHER' ? 'Professor' : 'Usuário'}</div>
-            <h3 className="profile-name">{name || user?.name}</h3>
-          </div>
-          <div style={{ marginTop: 16 }}>
-            <label className="btn btn-outline">
-              Alterar foto de perfil
-              <input type="file" accept="image/*" style={{ display:'none' }} onChange={async (e)=>{
-                const f = e.target.files?.[0]; if (!f) return
-                const form = new FormData(); form.append('file', f)
-                const r = await api.post('/users/me/avatar', form, { headers: { 'Content-Type':'multipart/form-data' } })
-                setAvatarUrl(r.data.avatarUrl)
-                setMsg('Foto atualizada')
-              }} />
-            </label>
-          </div>
-        </div>
-        <div className="profile-right-panel">
-          <div className="form-column">
-            <label>Nome de Usuário:</label>
-            <div className="input-edit-row">
-              <input className="input" value={name} onChange={e=>setName(e.target.value)} />
-              <button className="icon-edit">✎</button>
-            </div>
-
-            <label>E-mail:</label>
-            <div className="input-edit-row">
-              <input className="input" value={email} onChange={e=>setEmail(e.target.value)} />
-              <button className="icon-edit">✎</button>
-            </div>
-
-            <label>Nome completo:</label>
-            <div className="input-edit-row">
-              <input className="input" placeholder="Nome completo" value={user?.name ?? ''} disabled />
-            </div>
-
-            <div className="two-columns">
-              <div>
-                <label>Data de Nascimento:</label>
-                <div className="input-edit-row"><input className="input" placeholder="--/--/----" disabled /></div>
-              </div>
-              <div>
-                <label>Gênero:</label>
-                <div className="input-edit-row"><input className="input" placeholder="Feminino" disabled /></div>
-              </div>
-            </div>
-
-            <label>Telefone:</label>
-            <div className="input-edit-row">
-              <input className="input" placeholder="(00) 0000-0000" value={phone} onChange={e=>setPhone(e.target.value)} />
-              <button className="icon-edit">✎</button>
-            </div>
-            <div style={{ marginTop: 8 }}>
-              <button className="link-address" onClick={() => setShowAddressModal(true)}>Alterar endereço</button>
-            </div>
-
-            {msg && <div style={{ color: '#0a7', marginBottom: 8 }}>{msg}</div>}
-            <div style={{ marginTop: 12 }}>
-              <button className="btn btn-outline save-btn" disabled={saving} onClick={save}>Salvar</button>
-            </div>
-          </div>
-        </div>
-      </div>
-
-      {/* Modal de endereço */}
-      {showAddressModal && (
-        <div className="modal-overlay" onClick={() => setShowAddressModal(false)}>
-          <div className="modal-content" onClick={e => e.stopPropagation()}>
-            <div className="modal-header">
-              <h3>Alterar Endereço</h3>
-              <button className="modal-close" onClick={() => setShowAddressModal(false)}>×</button>
-            </div>
-            <div className="modal-body">
-              <div className="form-grid">
-                <div className="field">
-                  <label>CEP</label>
-                  <input 
-                    className="input" 
-                    placeholder="00000-000" 
-                    value={address.zipCode} 
-                    onChange={e => setAddress(prev => ({...prev, zipCode: e.target.value}))} 
-                  />
-                </div>
-                <div className="field">
-                  <label>Logradouro</label>
-                  <input 
-                    className="input" 
-                    placeholder="Rua, Avenida..." 
-                    value={address.street} 
-                    onChange={e => setAddress(prev => ({...prev, street: e.target.value}))} 
-                  />
-                </div>
-                <div className="field">
-                  <label>Número</label>
-                  <input 
-                    className="input" 
-                    placeholder="123" 
-                    value={address.number} 
-                    onChange={e => setAddress(prev => ({...prev, number: e.target.value}))} 
-                  />
-                </div>
-                <div className="field">
-                  <label>Complemento</label>
-                  <input 
-                    className="input" 
-                    placeholder="Apt, Bloco..." 
-                    value={address.complement} 
-                    onChange={e => setAddress(prev => ({...prev, complement: e.target.value}))} 
-                  />
-                </div>
-                <div className="field">
-                  <label>Bairro</label>
-                  <input 
-                    className="input" 
-                    placeholder="Centro" 
-                    value={address.neighborhood} 
-                    onChange={e => setAddress(prev => ({...prev, neighborhood: e.target.value}))} 
-                  />
-                </div>
-                <div className="field">
-                  <label>Cidade</label>
-                  <input 
-                    className="input" 
-                    placeholder="São Paulo" 
-                    value={address.city} 
-                    onChange={e => setAddress(prev => ({...prev, city: e.target.value}))} 
-                  />
-                </div>
-                <div className="field">
-                  <label>Estado</label>
-                  <select 
-                    className="select" 
-                    value={address.state} 
-                    onChange={e => setAddress(prev => ({...prev, state: e.target.value}))}
-                  >
-                    <option value="">Selecione</option>
-                    <option value="AC">AC</option>
-                    <option value="AL">AL</option>
-                    <option value="AP">AP</option>
-                    <option value="AM">AM</option>
-                    <option value="BA">BA</option>
-                    <option value="CE">CE</option>
-                    <option value="DF">DF</option>
-                    <option value="ES">ES</option>
-                    <option value="GO">GO</option>
-                    <option value="MA">MA</option>
-                    <option value="MT">MT</option>
-                    <option value="MS">MS</option>
-                    <option value="MG">MG</option>
-                    <option value="PA">PA</option>
-                    <option value="PB">PB</option>
-                    <option value="PR">PR</option>
-                    <option value="PE">PE</option>
-                    <option value="PI">PI</option>
-                    <option value="RJ">RJ</option>
-                    <option value="RN">RN</option>
-                    <option value="RS">RS</option>
-                    <option value="RO">RO</option>
-                    <option value="RR">RR</option>
-                    <option value="SC">SC</option>
-                    <option value="SP">SP</option>
-                    <option value="SE">SE</option>
-                    <option value="TO">TO</option>
-                  </select>
-                </div>
-              </div>
-            </div>
-            <div className="modal-footer">
-              <button className="btn btn-outline" onClick={() => setShowAddressModal(false)}>
-                Cancelar
-              </button>
-              <button className="btn" onClick={saveAddress}>
-                Salvar Endereço
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-    </Layout>
-  )
-}
+// Import assets
+import logo from './assets/logo.svg'
 
 type ClassSummary = { id: string; name: string; code: string; year: number }
 type StudentRow = { id: string; name: string }
 
 function FaltasDiario({ embed }: { embed?: boolean }) {
-  const [classes, setClasses] = useState<ClassSummary[]>([])
+  const { classes } = useClasses()
   const [classId, setClassId] = useState<string>('')
   const [date, setDate] = useState<string>(() => new Date().toISOString().slice(0,10))
   const [students, setStudents] = useState<StudentRow[]>([])
   const [statuses, setStatuses] = useState<Record<string, 'PRESENT'|'ABSENT'|'JUSTIFIED'>>({})
   const [dayId, setDayId] = useState<string | null>(null)
   const [saving, setSaving] = useState(false)
-
-  useEffect(() => { (async () => { const r = await api.get('/classes'); setClasses(r.data) })() }, [])
 
   useEffect(() => { (async () => {
     if (!classId || !date) return
@@ -513,6 +56,7 @@ function FaltasDiario({ embed }: { embed?: boolean }) {
     try {
   const records = students.map(s => ({ studentId: s.id, status: statuses[s.id] ?? 'PRESENT' }))
   await api.put(`/attendance/days/${dayId}/records`, records)
+      toast.success('Presenças salvas')
     } finally { setSaving(false) }
   }
 
@@ -576,44 +120,52 @@ function PlanejamentoAnual({ embed }: { embed?: boolean }) {
     setSaving(true)
     try {
   await api.put(`/classes/${classId}/planning`, { kind: 'ANNUAL', title: 'Planejamento', content, discipline, lessonsPlanned: lessons === '' ? null : Number(lessons) })
+      toast.success('Planejamento anual salvo')
     } finally { setSaving(false) }
   }
 
   const body = (
     <>
       <h1 className="title">Planejamento Anual</h1>
-      <div className="form-row">
-        <div>
-          <div>Turma:</div>
-          <select className="select" value={classId} onChange={e=>setClassId(e.target.value)}>
-            <option value="">-- escolha --</option>
-            {classes.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
-          </select>
-        </div>
-        <div>
-          <div>Disciplina:</div>
-          <select className="select" value={discipline} onChange={e=>setDiscipline(e.target.value)}>
-            <option>Artes</option>
-            <option>Português</option>
-            <option>Matemática</option>
-          </select>
-        </div>
-        <div>
-          <div>Aulas previstas:</div>
-          <input className="input" placeholder="00" style={{ width: 80 }} value={lessons} onChange={e=>{ const v = e.target.value; setLessons(v === '' ? '' : Number(v)) }} />
+      <div className="card">
+        <div className="card-header"><div className="card-title">Seleção</div></div>
+        <div className="panel">
+          <div className="form-row">
+            <div>
+              <div>Turma:</div>
+              <select className="select" value={classId} onChange={e=>setClassId(e.target.value)}>
+                <option value="">-- escolha --</option>
+                {classes.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
+              </select>
+            </div>
+            <div>
+              <div>Disciplina:</div>
+              <select className="select" value={discipline} onChange={e=>setDiscipline(e.target.value)}>
+                <option>Artes</option>
+                <option>Português</option>
+                <option>Matemática</option>
+              </select>
+            </div>
+            <div>
+              <div>Aulas previstas:</div>
+              <input className="input" placeholder="00" style={{ width: 80 }} value={lessons} onChange={e=>{ const v = e.target.value; setLessons(v === '' ? '' : Number(v)) }} />
+            </div>
+          </div>
         </div>
       </div>
-      <div className="panel" style={{ marginTop: 8 }}>
-        <div style={{ fontWeight: 600, marginBottom: 8 }}>Planejamento:</div>
-        <textarea 
-          ref={textareaRef}
-          className="textarea" 
-          placeholder="Insira seu texto aqui" 
-          value={content} 
-          onChange={e => { handleChange(e); setContent(e.target.value) }} 
-        />
-        <div style={{ marginTop: 8 }}>
-          <button className="btn" disabled={saving || !classId} onClick={onSave}>Salvar</button>
+      <div className="card" style={{ marginTop: 12 }}>
+        <div className="card-header"><div className="card-title">Planejamento</div></div>
+        <div className="panel">
+          <textarea 
+            ref={textareaRef}
+            className="textarea" 
+            placeholder="Insira seu texto aqui" 
+            value={content} 
+            onChange={e => { handleChange(e); setContent(e.target.value) }} 
+          />
+          <div className="form-actions">
+            <button className="btn" disabled={saving || !classId} onClick={onSave}>Salvar</button>
+          </div>
         </div>
       </div>
     </>
@@ -638,47 +190,55 @@ function PlanejamentoSemestral({ embed }: { embed?: boolean }) {
     setSaving(true)
     try {
   await api.put(`/classes/${classId}/planning`, { kind: 'SEMESTER', details: semester, title: 'Planejamento Semestral', content, discipline })
+      toast.success('Planejamento semestral salvo')
     } finally { setSaving(false) }
   }
 
   const body = (
     <>
       <h1 className="title">Planejamento Semestral</h1>
-      <div className="form-row">
-        <div>
-          <div>Turma:</div>
-          <select className="select" value={classId} onChange={e=>setClassId(e.target.value)}>
-            <option value="">-- escolha --</option>
-            {classes.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
-          </select>
-        </div>
-        <div>
-          <div>Disciplina:</div>
-          <select className="select" value={discipline} onChange={e=>setDiscipline(e.target.value)}>
-            <option>Artes</option>
-            <option>Português</option>
-            <option>Matemática</option>
-          </select>
-        </div>
-        <div>
-          <div>Semestre:</div>
-          <select className="select" value={semester} onChange={e=>setSemester(e.target.value as '1'|'2')}>
-            <option value="1">1º semestre</option>
-            <option value="2">2º semestre</option>
-          </select>
+      <div className="card">
+        <div className="card-header"><div className="card-title">Seleção</div></div>
+        <div className="panel">
+          <div className="form-row">
+            <div>
+              <div>Turma:</div>
+              <select className="select" value={classId} onChange={e=>setClassId(e.target.value)}>
+                <option value="">-- escolha --</option>
+                {classes.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
+              </select>
+            </div>
+            <div>
+              <div>Disciplina:</div>
+              <select className="select" value={discipline} onChange={e=>setDiscipline(e.target.value)}>
+                <option>Artes</option>
+                <option>Português</option>
+                <option>Matemática</option>
+              </select>
+            </div>
+            <div>
+              <div>Semestre:</div>
+              <select className="select" value={semester} onChange={e=>setSemester(e.target.value as '1'|'2')}>
+                <option value="1">1º semestre</option>
+                <option value="2">2º semestre</option>
+              </select>
+            </div>
+          </div>
         </div>
       </div>
-      <div className="panel" style={{ marginTop: 8 }}>
-        <div style={{ fontWeight: 600, marginBottom: 8 }}>Planejamento:</div>
-        <textarea 
-          ref={textareaRef}
-          className="textarea" 
-          placeholder="Insira seu texto aqui" 
-          value={content} 
-          onChange={e => { handleChange(e); setContent(e.target.value) }} 
-        />
-        <div style={{ marginTop: 8 }}>
-          <button className="btn" disabled={saving || !classId} onClick={onSave}>Salvar</button>
+      <div className="card" style={{ marginTop: 12 }}>
+        <div className="card-header"><div className="card-title">Planejamento</div></div>
+        <div className="panel">
+          <textarea 
+            ref={textareaRef}
+            className="textarea" 
+            placeholder="Insira seu texto aqui" 
+            value={content} 
+            onChange={e => { handleChange(e); setContent(e.target.value) }} 
+          />
+          <div className="form-actions">
+            <button className="btn" disabled={saving || !classId} onClick={onSave}>Salvar</button>
+          </div>
         </div>
       </div>
     </>
@@ -713,48 +273,56 @@ function PlanejamentoIndividual({ embed }: { embed?: boolean }) {
     setSaving(true)
     try {
       await api.put(`/classes/${classId}/planning`, { kind: 'INDIVIDUAL', details: studentId, title: 'Planejamento Individual', content, discipline })
+      toast.success('Planejamento individual salvo')
     } finally { setSaving(false) }
   }
 
   const body = (
     <>
       <h1 className="title">Planejamento Individual</h1>
-      <div className="form-row">
-        <div>
-          <div>Turma:</div>
-          <select className="select" value={classId} onChange={e=>setClassId(e.target.value)}>
-            <option value="">-- escolha --</option>
-            {classes.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
-          </select>
-        </div>
-        <div>
-          <div>Aluno:</div>
-          <select className="select" value={studentId} onChange={e=>setStudentId(e.target.value)} disabled={!classId}>
-            <option value="">-- escolha --</option>
-            {students.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
-          </select>
-        </div>
-        <div>
-          <div>Disciplina:</div>
-          <select className="select" value={discipline} onChange={e=>setDiscipline(e.target.value)}>
-            <option>Geral</option>
-            <option>Artes</option>
-            <option>Português</option>
-            <option>Matemática</option>
-          </select>
+      <div className="card">
+        <div className="card-header"><div className="card-title">Seleção</div></div>
+        <div className="panel">
+          <div className="form-row">
+            <div>
+              <div>Turma:</div>
+              <select className="select" value={classId} onChange={e=>setClassId(e.target.value)}>
+                <option value="">-- escolha --</option>
+                {classes.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
+              </select>
+            </div>
+            <div>
+              <div>Aluno:</div>
+              <select className="select" value={studentId} onChange={e=>setStudentId(e.target.value)} disabled={!classId}>
+                <option value="">-- escolha --</option>
+                {students.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
+              </select>
+            </div>
+            <div>
+              <div>Disciplina:</div>
+              <select className="select" value={discipline} onChange={e=>setDiscipline(e.target.value)}>
+                <option>Geral</option>
+                <option>Artes</option>
+                <option>Português</option>
+                <option>Matemática</option>
+              </select>
+            </div>
+          </div>
         </div>
       </div>
-      <div className="panel" style={{ marginTop: 8 }}>
-        <div style={{ fontWeight: 600, marginBottom: 8 }}>Plano Individual:</div>
-        <textarea 
-          ref={textareaRef}
-          className="textarea" 
-          placeholder="Metas, estratégias, recursos, avaliação..." 
-          value={content} 
-          onChange={e => { handleChange(e); setContent(e.target.value) }} 
-        />
-        <div style={{ marginTop: 8 }}>
-          <button className="btn" disabled={!classId || !studentId || saving} onClick={onSave}>Salvar</button>
+      <div className="card" style={{ marginTop: 12 }}>
+        <div className="card-header"><div className="card-title">Plano Individual</div></div>
+        <div className="panel">
+          <textarea 
+            ref={textareaRef}
+            className="textarea" 
+            placeholder="Metas, estratégias, recursos, avaliação..." 
+            value={content} 
+            onChange={e => { handleChange(e); setContent(e.target.value) }} 
+          />
+          <div className="form-actions">
+            <button className="btn" disabled={!classId || !studentId || saving} onClick={onSave}>Salvar</button>
+          </div>
         </div>
       </div>
     </>
@@ -762,62 +330,16 @@ function PlanejamentoIndividual({ embed }: { embed?: boolean }) {
   return embed ? body : <Layout>{body}</Layout>
 }
 
-function Turmas() {
-  const [classes, setClasses] = useState<ClassSummary[]>([])
-  const [classId, setClassId] = useState<string>('')
-  const [discentes, setDiscentes] = useState<{ id: string; nome: string }[]>([])
-
-  useEffect(() => { (async () => { const r = await api.get('/classes'); setClasses(r.data) })() }, [])
-  useEffect(() => { (async () => { if (!classId) return; const r = await api.get(`/classes/${classId}`); const students = r.data.enrollments.map((e: any) => ({ id: e.student.id, nome: e.student.name })); setDiscentes(students) })() }, [classId])
-  return (
-    <Layout>
-      <h1 className="title">Turmas</h1>
-      <div className="form-row">
-        <div>selecione a turma:&nbsp;
-          <select className="select" value={classId} onChange={e=>setClassId(e.target.value)}>
-            <option value="">-- escolha --</option>
-            {classes.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
-          </select>
-        </div>
-      </div>
-      <div className="panel" style={{ marginTop: 8 }}>
-        <h3>Docentes</h3>
-        <div style={{ display: 'flex', gap: 24, alignItems: 'center' }}>
-          <div className="avatar" style={{ width: 64, height: 64, borderRadius: 8 }} />
-          <div>
-            <div>Professor responsável</div>
-            <div style={{ color: '#666' }}>Usuário: analuisadarosadelima</div>
-            <div style={{ color: '#666' }}>Contato: (00) 0000-0000</div>
-          </div>
-        </div>
-        <h3 style={{ marginTop: 16 }}>Discentes</h3>
-        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16 }}>
-          {discentes.map(d => (
-            <div key={d.id} style={{ display: 'flex', gap: 16, alignItems: 'center' }}>
-              <div className="avatar" style={{ width: 64, height: 64, borderRadius: 8 }} />
-              <div>
-                <div>{d.nome}</div>
-                <div style={{ color: '#666' }}>Matrícula: 000000</div>
-                <div style={{ color: '#666' }}>Contato: (00) 0000-0000</div>
-              </div>
-            </div>
-          ))}
-        </div>
-      </div>
-    </Layout>
-  )
-}
-
-function NotFound() {
-  return <div style={{ padding: 16 }}>Página não encontrada</div>
-}
-
 export function App() {
   return (
     <Routes>
       <Route path="/login" element={<Login />} />
       <Route path="/signup" element={<SignupRequestPage />} />
+  <Route path="/recuperar-senha" element={<ForgotPassword />} />
+  <Route path="/resetar-senha" element={<ResetPassword />} />
       <Route element={<ProtectedRoute /> }>
+        <Route path="/" element={<Dashboard />} />
+        <Route path="/dashboard" element={<Dashboard />} />
         <Route path="/perfil" element={<Perfil />} />
   <Route path="/alunos" element={<AlunosPage />} />
         <Route path="/faltas" element={<FaltasPage />} />
@@ -831,7 +353,13 @@ export function App() {
         <Route path="/planejamento/semestral" element={<PlanningPage initialTab="semestral" />} />
         <Route path="/planejamento/individual" element={<PlanningPage initialTab="individual" />} />
         <Route path="/turmas" element={<Turmas />} />
-        <Route path="/admin/solicitacoes" element={<AdminSolicitacoes />} />
+  {/* rotas para Secretaria */}
+  <Route path="/secretaria/usuarios" element={<AdminUsuarios />} />
+    <Route path="/secretaria/alunos" element={<AlunosMatriculas />} />
+  {/* rotas legadas /admin redirecionam para /secretaria */}
+  <Route path="/admin/solicitacoes" element={<Navigate to="/secretaria/usuarios?tab=solicitacoes" replace />} />
+  <Route path="/admin/usuarios" element={<Navigate to="/secretaria/usuarios" replace />} />
+    <Route path="/admin/alunos" element={<Navigate to="/secretaria/alunos" replace />} />
   <Route path="/atividades" element={<AtividadesTabs />} />
   {/* rotas antigas mantidas para compatibilidade, abrindo a aba correspondente */}
   <Route path="/atividades/materia" element={<AtividadesTabs initial="MATERIA" />} />
@@ -844,229 +372,11 @@ export function App() {
   {/* rotas antigas mantidas para compatibilidade, abrindo a aba correspondente */}
   <Route path="/projetos/materia" element={<ProjetosTabs initial="SUBJECT" />} />
   <Route path="/projetos/multidisciplinares" element={<ProjetosTabs initial="MULTI" />} />
-        <Route path="/" element={<Turmas />} />
       </Route>
       <Route path="*" element={<NotFound />} />
     </Routes>
   )
 }
-function AlunosPage() {
-  type Student = { 
-    id: string; 
-    name: string; 
-    email?: string|null; 
-    registryId?: string|null; 
-    photoUrl?: string|null;
-    birthDate?: string|null;
-    phone?: string|null;
-    comorbidities?: string|null;
-    allergies?: string|null;
-    medications?: string|null;
-    observations?: string|null;
-    address?: {
-      street: string;
-      number: number;
-      complement?: string;
-      neighborhood: string;
-      city: string;
-      state: string;
-      zipCode: string;
-    }|null;
-    gender?: {
-      description: string;
-    }|null;
-  }
-  const [list, setList] = useState<Student[]>([])
-  const [name, setName] = useState('')
-  const [email, setEmail] = useState('')
-  const [registryId, setRegistryId] = useState('')
-  const [loading, setLoading] = useState(false)
-  const [selectedStudent, setSelectedStudent] = useState<Student|null>(null)
-  const [showDetailsModal, setShowDetailsModal] = useState(false)
-
-  const load = async () => {
-    setLoading(true)
-    try {
-      const r = await api.get('/students?include=address,gender')
-      setList(r.data)
-    } finally { setLoading(false) }
-  }
-  useEffect(() => { load() }, [])
-
-  const create = async () => {
-    if (!name.trim()) return
-    await api.post('/students', { name, email: email || null, registryId: registryId || null })
-    setName(''); setEmail(''); setRegistryId('')
-    await load()
-  }
-
-  const onUpload = async (id: string, file: File) => {
-    const form = new FormData(); form.append('file', file)
-    await api.post(`/students/${id}/photo`, form, { headers: { 'Content-Type':'multipart/form-data' } })
-    await load()
-  }
-
-  return (
-    <Layout>
-      <h1 className="title">Alunos</h1>
-      <div className="card">
-        <div className="form-grid">
-          <div className="field"><label>Nome</label><input className="input" value={name} onChange={e=>setName(e.target.value)} /></div>
-          <div className="field"><label>E-mail</label><input className="input" value={email} onChange={e=>setEmail(e.target.value)} /></div>
-          <div className="field"><label>Matrícula</label><input className="input" value={registryId} onChange={e=>setRegistryId(e.target.value)} /></div>
-        </div>
-        <div className="form-row"><button className="btn" onClick={create}>Cadastrar aluno</button></div>
-      </div>
-
-      <div className="panel" style={{ marginTop: 12 }}>
-        {loading ? 'Carregando...' : (
-          <table className="table">
-            <thead><tr><th>Foto</th><th>Nome</th><th>Email</th><th>Matrícula</th><th>Ações</th></tr></thead>
-            <tbody>
-              {list.map(s => (
-                <tr key={s.id}>
-                  <td>
-                    {s.photoUrl ? <img src={s.photoUrl.startsWith('http')?s.photoUrl:(`${location.origin}${s.photoUrl}`)} style={{width:48,height:48,objectFit:'cover',borderRadius:6}}/> : <div className="avatar" style={{width:48,height:48}}/>}
-                  </td>
-                  <td>{s.name}</td>
-                  <td>{s.email || '-'}</td>
-                  <td>{s.registryId || '-'}</td>
-                  <td>
-                    <div style={{ display: 'flex', gap: '8px' }}>
-                      <label className="btn btn-outline">
-                        Foto
-                        <input type="file" accept="image/*" style={{display:'none'}} onChange={e=>{ const f=e.target.files?.[0]; if (f) onUpload(s.id, f) }} />
-                      </label>
-                      <button className="btn btn-outline" onClick={() => { setSelectedStudent(s); setShowDetailsModal(true) }}>
-                        Ver mais
-                      </button>
-                    </div>
-                  </td>
-                </tr>
-              ))}
-              {!list.length && <tr><td colSpan={5} style={{textAlign:'center',color:'#666'}}>Nenhum aluno</td></tr>}
-            </tbody>
-          </table>
-        )}
-      </div>
-
-      {/* Modal de Detalhes do Aluno */}
-      {showDetailsModal && selectedStudent && (
-        <div className="modal-overlay" onClick={() => setShowDetailsModal(false)}>
-          <div className="modal-content student-details-modal" onClick={e => e.stopPropagation()}>
-            <div className="modal-header">
-              <h3>Informações Detalhadas do Aluno</h3>
-              <button className="modal-close" onClick={() => setShowDetailsModal(false)}>×</button>
-            </div>
-            <div className="student-details-body">
-              <div className="student-details-left">
-                <div className="student-photo-section">
-                  {selectedStudent.photoUrl ? (
-                    <img 
-                      src={selectedStudent.photoUrl.startsWith('http') ? selectedStudent.photoUrl : `${location.origin}${selectedStudent.photoUrl}`} 
-                      className="student-detail-photo"
-                      alt="Foto do aluno"
-                    />
-                  ) : (
-                    <div className="student-detail-photo student-photo-placeholder">
-                      <span>Sem foto</span>
-                    </div>
-                  )}
-                </div>
-                <h4 className="student-detail-name">{selectedStudent.name}</h4>
-                <p className="student-detail-id">Matrícula: {selectedStudent.registryId || 'Não informada'}</p>
-              </div>
-              
-              <div className="student-details-right">
-                <div className="details-grid">
-                  <div className="detail-group">
-                    <h5>Dados Pessoais</h5>
-                    <div className="detail-item">
-                      <span className="detail-label">E-mail:</span>
-                      <span className="detail-value">{selectedStudent.email || 'Não informado'}</span>
-                    </div>
-                    <div className="detail-item">
-                      <span className="detail-label">Data de Nascimento:</span>
-                      <span className="detail-value">
-                        {selectedStudent.birthDate ? new Date(selectedStudent.birthDate).toLocaleDateString('pt-BR') : 'Não informada'}
-                      </span>
-                    </div>
-                    <div className="detail-item">
-                      <span className="detail-label">Telefone:</span>
-                      <span className="detail-value">{selectedStudent.phone || 'Não informado'}</span>
-                    </div>
-                    <div className="detail-item">
-                      <span className="detail-label">Gênero:</span>
-                      <span className="detail-value">{selectedStudent.gender?.description || 'Não informado'}</span>
-                    </div>
-                  </div>
-
-                  {selectedStudent.address && (
-                    <div className="detail-group">
-                      <h5>Endereço</h5>
-                      <div className="detail-item">
-                        <span className="detail-label">Rua:</span>
-                        <span className="detail-value">{selectedStudent.address.street}, {selectedStudent.address.number}</span>
-                      </div>
-                      {selectedStudent.address.complement && (
-                        <div className="detail-item">
-                          <span className="detail-label">Complemento:</span>
-                          <span className="detail-value">{selectedStudent.address.complement}</span>
-                        </div>
-                      )}
-                      <div className="detail-item">
-                        <span className="detail-label">Bairro:</span>
-                        <span className="detail-value">{selectedStudent.address.neighborhood}</span>
-                      </div>
-                      <div className="detail-item">
-                        <span className="detail-label">Cidade:</span>
-                        <span className="detail-value">{selectedStudent.address.city}</span>
-                      </div>
-                      <div className="detail-item">
-                        <span className="detail-label">Estado:</span>
-                        <span className="detail-value">{selectedStudent.address.state}</span>
-                      </div>
-                      <div className="detail-item">
-                        <span className="detail-label">CEP:</span>
-                        <span className="detail-value">{selectedStudent.address.zipCode}</span>
-                      </div>
-                    </div>
-                  )}
-
-                  <div className="detail-group">
-                    <h5>Informações de Saúde</h5>
-                    <div className="detail-item">
-                      <span className="detail-label">Comorbidades:</span>
-                      <span className="detail-value">{selectedStudent.comorbidities || 'Nenhuma informada'}</span>
-                    </div>
-                    <div className="detail-item">
-                      <span className="detail-label">Alergias:</span>
-                      <span className="detail-value">{selectedStudent.allergies || 'Nenhuma informada'}</span>
-                    </div>
-                    <div className="detail-item">
-                      <span className="detail-label">Medicações:</span>
-                      <span className="detail-value">{selectedStudent.medications || 'Nenhuma informada'}</span>
-                    </div>
-                  </div>
-
-                  {selectedStudent.observations && (
-                    <div className="detail-group">
-                      <h5>Observações</h5>
-                      <div className="detail-item">
-                        <span className="detail-value observation-text">{selectedStudent.observations}</span>
-                      </div>
-                    </div>
-                  )}
-                </div>
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
-    </Layout>
-  )
-}
-
 
 function SimplePlaceholder({ title }: { title: string }) {
   return (
@@ -1160,6 +470,7 @@ function AvaliacoesDesenvolvimento({ embed }: { embed?: boolean }) {
     setSaving(true)
     try {
       await api.put(`/classes/${classId}/planning`, { kind: 'INDIVIDUAL', details: `dev:${studentId}`, title: 'Avaliação - Desenvolvimento', content: text, discipline: 'Avaliação' })
+      toast.success('Avaliação salva')
     } finally { setSaving(false) }
   }
   const body = (
@@ -1244,6 +555,7 @@ function ProjetosPage({ type }: { type: 'SUBJECT'|'MULTIDISCIPLINARY' }) {
       setSelectedDisciplines([])
     }
     await load(classId)
+    toast.success('Projeto criado')
   }
 
   const toggleDiscipline = (disc: string) => {
@@ -1274,6 +586,7 @@ function ProjetosPage({ type }: { type: 'SUBJECT'|'MULTIDISCIPLINARY' }) {
     const upd = { ...p, ...patch }
     await api.put(`/projects/${p.id}`, upd)
     await load(classId)
+    toast.success('Projeto atualizado')
   }
   const remove = async (id: string) => { await api.delete(`/projects/${id}`); await load(classId) }
   const toggleExpand = async (p: Project) => {
@@ -1287,15 +600,18 @@ function ProjetosPage({ type }: { type: 'SUBJECT'|'MULTIDISCIPLINARY' }) {
     const created = await api.post(`/projects/${p.id}/milestones`, { title: msTitle, dueDate: msDue || null, notes: msNotes || undefined })
     setMilestones(prev => ({ ...prev, [p.id]: [ ...(prev[p.id] || []), created.data ] }))
     setMsTitle(''); setMsDue(''); setMsNotes('')
+    toast.success('Marco adicionado')
   }
   const updateMilestone = async (p: Project, m: Milestone, patch: Partial<Milestone>) => {
     const upd = { ...m, ...patch }
     const r = await api.put(`/projects/${p.id}/milestones/${m.id}`, upd)
     setMilestones(prev => ({ ...prev, [p.id]: (prev[p.id]||[]).map(x => x.id===m.id ? r.data : x) }))
+    toast.success('Marco atualizado')
   }
   const delMilestone = async (p: Project, m: Milestone) => {
     await api.delete(`/projects/${p.id}/milestones/${m.id}`)
     setMilestones(prev => ({ ...prev, [p.id]: (prev[p.id]||[]).filter(x => x.id!==m.id) }))
+    toast.success('Marco excluído')
   }
   const exportCsv = () => {
     const rows = items.map(p => ({
@@ -1333,10 +649,11 @@ function ProjetosPage({ type }: { type: 'SUBJECT'|'MULTIDISCIPLINARY' }) {
         </div>
       </div>
       <div className="card">
+        <div className="card-header"><div className="card-title">Cadastrar projeto</div></div>
         <div className="form-grid">
-          <div className="field"><label>Título</label><input className="input" placeholder="Ex.: Semana da Leitura" value={title} onChange={e=>setTitle(e.target.value)} /></div>
-          <div className="field"><label>Descrição</label><input className="input" placeholder="Resumo do projeto" value={desc} onChange={e=>setDesc(e.target.value)} /></div>
-          <div className="field"><label>Público-alvo</label><input className="input" placeholder="Alunos do 5º ano" value={audience} onChange={e=>setAudience(e.target.value)} /></div>
+          <div className="field"><label>Título</label><input data-cy="project-title" className="input" placeholder="Ex.: Semana da Leitura" value={title} onChange={e=>setTitle(e.target.value)} /></div>
+          <div className="field"><label>Descrição</label><input data-cy="project-description" className="input" placeholder="Resumo do projeto" value={desc} onChange={e=>setDesc(e.target.value)} /></div>
+          <div className="field"><label>Público-alvo</label><input data-cy="project-audience" className="input" placeholder="Alunos do 5º ano" value={audience} onChange={e=>setAudience(e.target.value)} /></div>
           {type === 'MULTIDISCIPLINARY' && (
             <div className="field">
               <label>Disciplinas</label>
@@ -1360,8 +677,8 @@ function ProjetosPage({ type }: { type: 'SUBJECT'|'MULTIDISCIPLINARY' }) {
               </div>
             </div>
           )}
-          <div className="field"><label>Início</label><input className="input" type="date" value={start} onChange={e=>setStart(e.target.value)} /></div>
-          <div className="field"><label>Fim</label><input className="input" type="date" value={end} onChange={e=>setEnd(e.target.value)} /></div>
+          <div className="field"><label>Início</label><input data-cy="project-start" className="input" type="date" value={start} onChange={e=>setStart(e.target.value)} /></div>
+          <div className="field"><label>Fim</label><input data-cy="project-end" className="input" type="date" value={end} onChange={e=>setEnd(e.target.value)} /></div>
           <div className="field"><label>Status</label>
             <div style={{ display:'flex', alignItems:'center' }}>
               <select className="select" value={status} onChange={e=>setStatus(e.target.value as Project['status'])} disabled>
@@ -1371,12 +688,13 @@ function ProjetosPage({ type }: { type: 'SUBJECT'|'MULTIDISCIPLINARY' }) {
                 <option value="ON_HOLD">Em espera</option>
                 <option value="CANCELLED">Cancelado</option>
               </select>
-              {statusPill(status)}
             </div>
           </div>
         </div>
-        <div className="form-row"><button className="btn" onClick={create} disabled={!classId}>Adicionar projeto</button></div>
-  <div className="form-row"><button className="btn btn-outline" onClick={exportCsv} disabled={!items.length}>Exportar CSV</button></div>
+        <div className="form-actions">
+          <button data-cy="project-add" className="btn" onClick={create} disabled={!classId}>Adicionar projeto</button>
+          <button data-cy="project-export" className="btn btn-outline" onClick={exportCsv} disabled={!items.length}>Exportar CSV</button>
+        </div>
   <table className="table">
           <thead><tr><th>Título</th><th>Status</th><th>Início</th><th>Fim</th><th>Ações</th></tr></thead>
           <tbody>
@@ -1400,7 +718,7 @@ function ProjetosPage({ type }: { type: 'SUBJECT'|'MULTIDISCIPLINARY' }) {
                   <td>{p.endDate ? new Date(p.endDate).toLocaleDateString() : '-'}</td>
                   <td style={{display:'flex',gap:8}}>
                     <button className="btn btn-outline" onClick={()=>toggleExpand(p)}>Marcos</button>
-                    <button className="btn btn-outline" onClick={()=>remove(p.id)}>Excluir</button>
+                    <button className="btn btn-danger" onClick={()=>remove(p.id)}>Excluir</button>
                   </td>
                 </tr>
                 {expanded===p.id && (
@@ -1424,7 +742,7 @@ function ProjetosPage({ type }: { type: 'SUBJECT'|'MULTIDISCIPLINARY' }) {
                                   <input type="checkbox" checked={m.done} onChange={e=>updateMilestone(p, m, { done: e.target.checked })} />
                                 </td>
                                 <td>
-                                  <button className="btn btn-outline" onClick={()=>delMilestone(p,m)}>Excluir</button>
+                                  <button className="btn btn-danger" onClick={()=>delMilestone(p,m)}>Excluir</button>
                                 </td>
                               </tr>
                             ))}
@@ -1503,6 +821,7 @@ function AvaliacoesEvolutivas({ embed }: { embed?: boolean }) {
     setSaving(true)
     try {
       await api.put(`/classes/${classId}/planning`, { kind: 'INDIVIDUAL', details: `evo:${studentId}`, title: 'Avaliação – Evolutiva', content: text, discipline: 'Avaliação' })
+      toast.success('Avaliação evolutiva salva')
     } finally { setSaving(false) }
   }
   const body = (
@@ -1692,8 +1011,9 @@ function AtividadesMateria({ category }: { category?: 'SUBJECT'|'MULTIDISCIPLINA
       setSelectedDisciplines([])
     }
     await load(classId)
+    toast.success('Atividade criada')
   }
-  const remove = async (id: string) => { await api.delete(`/activities/${id}`); await load(classId) }
+  const remove = async (id: string) => { await api.delete(`/activities/${id}`); await load(classId); toast.success('Atividade excluída') }
   const refresh = async () => load(classId)
   const exportCsv = () => {
     const rows = items.map(a => ({
@@ -1730,11 +1050,13 @@ function AtividadesMateria({ category }: { category?: 'SUBJECT'|'MULTIDISCIPLINA
     const r = await api.post(`/activities/${activityId}/elaborations`, { text: elabText })
     setElabList(prev => ({ ...prev, [activityId]: [r.data, ...(prev[activityId] || [])] }))
     setElabText('')
+    toast.success('Relato adicionado')
   }
 
   const saveGrades = async (activityId: string) => {
     const payload = gradeRows.map(r => ({ studentId: r.studentId, score: Number(r.score) }))
     await api.put(`/activities/${activityId}/grades`, payload)
+    toast.success('Notas salvas')
   }
 
   const toggleDiscipline = (disc: string) => {
@@ -1805,23 +1127,24 @@ function AtividadesMateria({ category }: { category?: 'SUBJECT'|'MULTIDISCIPLINA
         </div>
       </div>
       <div className="card">
+        <div className="card-header"><div className="card-title">Cadastrar atividade</div></div>
         <div className="form-grid">
-          <div className="field"><label>Título</label><input className="input" placeholder="Ex.: Lista de multiplicação" value={title} onChange={e=>setTitle(e.target.value)} /></div>
-          <div className="field"><label>Descrição</label><input className="input" placeholder="Descrição breve" value={desc} onChange={e=>setDesc(e.target.value)} /></div>
+          <div className="field"><label>Título</label><input data-cy="activity-title" className="input" placeholder="Ex.: Lista de multiplicação" value={title} onChange={e=>setTitle(e.target.value)} /></div>
+          <div className="field"><label>Descrição</label><input data-cy="activity-description" className="input" placeholder="Descrição breve" value={desc} onChange={e=>setDesc(e.target.value)} /></div>
           <div className="field"><label>Tema</label><input className="input" placeholder="Tema" value={topic} onChange={e=>setTopic(e.target.value)} /></div>
           <div className="field"><label>Metodologia</label><input className="input" placeholder="Metodologia" value={methodology} onChange={e=>setMethodology(e.target.value)} /></div>
           <div className="field"><label>Conteúdo</label><input className="input" placeholder="Conteúdo" value={content} onChange={e=>setContent(e.target.value)} /></div>
-          <div className="field"><label>Vencimento</label><input className="input" type="date" value={due} onChange={e=>setDue(e.target.value)} /></div>
-          <div className="field"><label>Nota máx.</label><input className="input" style={{width:120}} type="number" min={1} max={100} value={max} onChange={e=>setMax(Number(e.target.value))} /></div>
+          <div className="field"><label>Vencimento</label><input data-cy="activity-due" className="input" type="date" value={due} onChange={e=>setDue(e.target.value)} /></div>
+          <div className="field"><label>Nota máx.</label><input data-cy="activity-max" className="input" style={{width:120}} type="number" min={1} max={100} value={max} onChange={e=>setMax(Number(e.target.value))} /></div>
           <div className="field"><label>Dificuldade</label><select className="select" value={difficultyId} onChange={e=>setDifficultyId(e.target.value)}>
             <option value="">Selecione</option>
             {difficultyList.map(d => <option key={d.id} value={d.id}>{d.type}</option>)}
           </select></div>
           <div className="field" style={{gridColumn:'1 / -1'}}><label>Observações</label><input className="input" placeholder="Observações" value={observations} onChange={e=>setObservations(e.target.value)} /></div>
         </div>
-        <div className="form-row">
-          <button className="btn" onClick={create} disabled={!classId}>Adicionar</button>
-          <button className="btn btn-outline" onClick={exportCsv} disabled={!items.length}>Exportar CSV</button>
+        <div className="form-actions">
+          <button data-cy="activity-add" className="btn" onClick={create} disabled={!classId}>Adicionar</button>
+          <button data-cy="activity-export" className="btn btn-outline" onClick={exportCsv} disabled={!items.length}>Exportar CSV</button>
         </div>
         {loading ? 'Carregando...' : (
           <table className="table">
@@ -1835,9 +1158,9 @@ function AtividadesMateria({ category }: { category?: 'SUBJECT'|'MULTIDISCIPLINA
                     <td>{a.dueDate ? new Date(a.dueDate).toLocaleDateString() : '-'}</td>
                     <td>{a.maxScore}</td>
                     <td style={{display:'flex',gap:8}}>
-                      <button className="btn btn-outline" onClick={()=>toggleExpand(a,'relatos')}>Relatos</button>
-                      <button className="btn btn-outline" onClick={()=>toggleExpand(a,'notas')}>Notas</button>
-                      <button className="btn btn-outline" onClick={()=>remove(a.id)}>Excluir</button>
+                      <button data-cy="activity-relatos" className="btn btn-outline" onClick={()=>toggleExpand(a,'relatos')}>Relatos</button>
+                      <button data-cy="activity-notas" className="btn btn-outline" onClick={()=>toggleExpand(a,'notas')}>Notas</button>
+                      <button data-cy="activity-delete" className="btn btn-danger" onClick={()=>remove(a.id)}>Excluir</button>
                     </td>
                   </tr>
                   {expandedId === a.id && (
@@ -1853,7 +1176,7 @@ function AtividadesMateria({ category }: { category?: 'SUBJECT'|'MULTIDISCIPLINA
                               <div className="form-row">
                                 <textarea className="textarea" placeholder="Adicionar relato de desenvolvimento..." value={elabText} onChange={e=>setElabText(e.target.value)} />
                               </div>
-                              <div><button className="btn" onClick={()=>addElaboration(a.id)}>Adicionar relato</button></div>
+                              <div><button data-cy="activity-elab-add" className="btn" onClick={()=>addElaboration(a.id)}>Adicionar relato</button></div>
                               <div style={{marginTop:12}}>
                                 {(elabList[a.id]||[]).map(el => (
                                   <div key={el.id} style={{padding:'8px 0', borderBottom:'1px solid #eee'}}>
@@ -1877,7 +1200,7 @@ function AtividadesMateria({ category }: { category?: 'SUBJECT'|'MULTIDISCIPLINA
                                   ))}
                                 </tbody>
                               </table>
-                              <div><button className="btn" onClick={()=>saveGrades(a.id)}>Salvar notas</button></div>
+                              <div><button data-cy="activity-grades-save" className="btn" onClick={()=>saveGrades(a.id)}>Salvar notas</button></div>
                             </div>
                           )}
                         </div>
@@ -1949,8 +1272,8 @@ function FaltasPage({ initialTab }: { initialTab?: 'diario'|'observacoes'|'histo
   )
 }
 
-function PlanningPage({ initialTab }: { initialTab?: 'anual'|'semestral'|'individual' }) {
-  const [tab, setTab] = useState<'anual'|'semestral'|'individual'>(initialTab ?? 'anual')
+function PlanningPage({ initialTab }: { initialTab?: 'anual'|'semestral'|'individual'|'historico' }) {
+  const [tab, setTab] = useState<'anual'|'semestral'|'individual'|'historico'>(initialTab ?? 'anual')
   return (
     <Layout>
       <h1 className="title">Planejamento</h1>
@@ -1958,14 +1281,98 @@ function PlanningPage({ initialTab }: { initialTab?: 'anual'|'semestral'|'indivi
         <button className={`tab ${tab==='anual'?'active':''}`} onClick={()=>setTab('anual')}>Anual</button>
         <button className={`tab ${tab==='semestral'?'active':''}`} onClick={()=>setTab('semestral')}>Semestral</button>
         <button className={`tab ${tab==='individual'?'active':''}`} onClick={()=>setTab('individual')}>Individual</button>
+        <button className={`tab ${tab==='historico'?'active':''}`} onClick={()=>setTab('historico')}>Histórico</button>
       </div>
       <div style={{ marginTop: 12 }}>
         {tab==='anual' && <PlanejamentoAnual embed />}
         {tab==='semestral' && <PlanejamentoSemestral embed />}
         {tab==='individual' && <PlanejamentoIndividual embed />}
+        {tab==='historico' && <PlanejamentoHistorico embed />}
       </div>
     </Layout>
   )
+}
+
+function PlanejamentoHistorico({ embed }: { embed?: boolean }) {
+  const [classes, setClasses] = useState<ClassSummary[]>([])
+  const [classId, setClassId] = useState('')
+  const [kind, setKind] = useState<'ANNUAL'|'SEMESTER'|'INDIVIDUAL'|'TODOS'>('TODOS')
+  const [discipline, setDiscipline] = useState('')
+  const [month, setMonth] = useState('')
+  const [items, setItems] = useState<any[]>([])
+  const [loading, setLoading] = useState(false)
+
+  useEffect(() => { (async () => { const r = await api.get('/classes'); setClasses(r.data) })() }, [])
+
+  const load = async () => {
+    if (!classId) return
+    setLoading(true)
+    try {
+      const params: any = {}
+      if (kind !== 'TODOS') params.kind = kind
+      if (discipline) params.discipline = discipline
+      const r = await api.get(`/classes/${classId}/plannings`, { params })
+      let list = r.data as any[]
+      if (month) list = list.filter(p => p.date && p.date.startsWith(month))
+      setItems(list)
+    } finally { setLoading(false) }
+  }
+
+  useEffect(() => { load() }, [classId, kind, discipline, month])
+
+  const body = (
+    <>
+      <h1 className="title">Histórico de Planejamentos</h1>
+      <div className="form-row">
+        <div>
+          <div>Turma:</div>
+          <select className="select" value={classId} onChange={e=>setClassId(e.target.value)}>
+            <option value="">-- escolha --</option>
+            {classes.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
+          </select>
+        </div>
+        <div>
+          <div>Tipo:</div>
+          <select className="select" value={kind} onChange={e=>setKind(e.target.value as any)}>
+            <option value="TODOS">Todos</option>
+            <option value="ANNUAL">Anual</option>
+            <option value="SEMESTER">Semestral</option>
+            <option value="INDIVIDUAL">Individual</option>
+          </select>
+        </div>
+        <div>
+          <div>Disciplina:</div>
+          <input className="input" placeholder="Ex.: Artes" value={discipline} onChange={e=>setDiscipline(e.target.value)} />
+        </div>
+        <div>
+          <div>Período:</div>
+          <input className="input" type="month" value={month} onChange={e=>setMonth(e.target.value)} />
+        </div>
+      </div>
+
+      <div className="panel">
+        {loading ? 'Carregando...' : (
+          <table className="table">
+            <thead><tr><th>Data</th><th>Título</th><th>Tipo</th><th>Disciplina</th><th>Resumo</th></tr></thead>
+            <tbody>
+              {items.map((p:any) => (
+                <tr key={p.id}>
+                  <td>{p.date ? new Date(p.date).toLocaleDateString() : '-'}</td>
+                  <td>{p.title || '-'}</td>
+                  <td>{p.kind}</td>
+                  <td>{p.discipline || '-'}</td>
+                  <td title={p.content || ''}>{(p.content || '').slice(0, 120)}{(p.content||'').length>120?'...':''}</td>
+                </tr>
+              ))}
+              {!classId && <tr><td colSpan={5} style={{textAlign:'center',color:'#666'}}>Selecione uma turma</td></tr>}
+              {classId && !items.length && <tr><td colSpan={5} style={{textAlign:'center',color:'#666'}}>Nenhum planejamento encontrado</td></tr>}
+            </tbody>
+          </table>
+        )}
+      </div>
+    </>
+  )
+  return embed ? body : <Layout>{body}</Layout>
 }
 
 function FaltasObservacoes({ embed }: { embed?: boolean }) {
@@ -2054,7 +1461,7 @@ function FaltasObservacoes({ embed }: { embed?: boolean }) {
 }
 
 function HistoricoAcademico({ type, embed }: { type?: 'atividades'|'projetos'|'avaliacoes'; embed?: boolean }) {
-  const [classes, setClasses] = useState<ClassSummary[]>([])
+  const { classes } = useClasses()
   const [classId, setClassId] = useState('')
   const [dateFilter, setDateFilter] = useState('')
   const [typeFilter, setTypeFilter] = useState(type || 'todos')
@@ -2064,33 +1471,52 @@ function HistoricoAcademico({ type, embed }: { type?: 'atividades'|'projetos'|'a
   const [loading, setLoading] = useState(false)
   const [showPhotoModal, setShowPhotoModal] = useState(false)
   const [currentItemId, setCurrentItemId] = useState<string>('')
-
-  useEffect(() => { (async () => { const r = await api.get('/classes'); setClasses(r.data) })() }, [])
   
   const loadHistorico = async (cid: string) => {
     if (!cid) return
     setLoading(true)
     try {
-      setItems([])
-      // Em caso de erro na API, usar dados mockados
-      const mockData = [
-        { id: '1', title: 'Projeto da Feira de Ciências', type: 'projeto', completedAt: '2024-09-15', description: 'Projeto multidisciplinar sobre meio ambiente' },
-        { id: '2', title: 'Avaliação de Matemática - 2º Bimestre', type: 'avaliacao', completedAt: '2024-09-10', maxScore: 10, averageScore: 8.5 },
-        { id: '3', title: 'Atividade de Leitura - Dom Casmurro', type: 'atividade', completedAt: '2024-09-08', discipline: 'Português' },
-        { id: '4', title: 'Experimento de Física - Densidade', type: 'atividade', completedAt: '2024-09-05', discipline: 'Ciências' },
-        { id: '5', title: 'Projeto Cultural - Folclore Brasileiro', type: 'projeto', completedAt: '2024-08-30', description: 'Resgate das tradições culturais brasileiras' }
-      ]
+      let allItems: any[] = []
       
-      let filteredData = mockData
-      if (typeFilter !== 'todos') {
-        filteredData = mockData.filter(item => {
-          if (typeFilter === 'atividades') return item.type === 'atividade'
-          if (typeFilter === 'projetos') return item.type === 'projeto'
-          if (typeFilter === 'avaliacoes') return item.type === 'avaliacao'
-          return true
-        })
+      // Carregar atividades
+      if (typeFilter === 'todos' || typeFilter === 'atividades') {
+        try {
+          const activitiesRes = await api.get(`/classes/${cid}/activities`)
+          const activities = activitiesRes.data.map((a: any) => ({
+            ...a,
+            type: 'atividade',
+            completedAt: a.createdAt
+          }))
+          allItems = [...allItems, ...activities]
+        } catch (error) {
+          console.warn('Failed to load activities:', error)
+        }
       }
-      setItems(filteredData)
+      
+      // Carregar projetos
+      if (typeFilter === 'todos' || typeFilter === 'projetos') {
+        try {
+          const projectsRes = await api.get(`/classes/${cid}/projects`)
+          const projects = projectsRes.data.map((p: any) => ({
+            ...p,
+            type: 'projeto',
+            completedAt: p.createdAt,
+            title: p.title,
+            description: p.description
+          }))
+          allItems = [...allItems, ...projects]
+        } catch (error) {
+          console.warn('Failed to load projects:', error)
+        }
+      }
+      
+      // Para avaliações, usar dados do planejamento individual
+      if (typeFilter === 'todos' || typeFilter === 'avaliacoes') {
+        // Avaliações são específicas e podem ser implementadas posteriormente
+        // Por enquanto, deixar vazio ou usar dados existentes
+      }
+      
+      setItems(allItems)
     } finally {
       setLoading(false)
     }

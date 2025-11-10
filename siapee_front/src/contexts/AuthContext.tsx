@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useEffect, useMemo, useState } from 'react'
+import React, { createContext, useContext, useEffect, useMemo, useRef, useState } from 'react'
 import { api } from '../services/api'
 
 type User = { id: string; name: string; role: 'ADMIN'|'TEACHER'|'SECRETARY'; avatarUrl?: string|null }
@@ -8,7 +8,7 @@ type AuthContextType = {
   user: User | null
   tokens: Tokens | null
   loading: boolean
-  login: (email: string, password: string) => Promise<void>
+  login: (loginOrEmail: string, password: string) => Promise<void>
   logout: () => void
 }
 
@@ -30,6 +30,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [tokens, setTokens] = useState<Tokens | null>(getStoredTokens())
   const [user, setUser] = useState<User | null>(null)
   const [loading, setLoading] = useState(true)
+  const isRefreshing = useRef(false)
 
   // Setup axios interceptors
   useEffect(() => {
@@ -44,19 +45,34 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       (res) => res,
       async (err) => {
         const original = err.config
-        if (err.response?.status === 401 && tokens?.refreshToken && !original._retried) {
+        
+        // Don't retry refresh endpoint itself to prevent infinite loop
+        if (original.url?.includes('/auth/refresh')) {
+          return Promise.reject(err)
+        }
+        
+        // Only attempt refresh once and if we have a refresh token
+        if (err.response?.status === 401 && tokens?.refreshToken && !original._retried && !isRefreshing.current) {
           original._retried = true
+          isRefreshing.current = true
+          
           try {
             const r = await api.post('/auth/refresh', { refreshToken: tokens.refreshToken })
             const newAccess = r.data.accessToken as string
             const nextTokens = { accessToken: newAccess, refreshToken: tokens.refreshToken }
             setTokens(nextTokens)
             setStoredTokens(nextTokens)
+            isRefreshing.current = false
             original.headers = original.headers ?? {}
             original.headers.Authorization = `Bearer ${newAccess}`
             return api(original)
-          } catch {
-            setTokens(null); setStoredTokens(null); setUser(null)
+          } catch (refreshErr) {
+            // Refresh failed - clear everything and stop
+            isRefreshing.current = false
+            setTokens(null)
+            setStoredTokens(null)
+            setUser(null)
+            return Promise.reject(err)
           }
         }
         return Promise.reject(err)
@@ -75,7 +91,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         } else {
           setUser(null)
         }
-      } catch {
+      } catch (err) {
+        // Clear tokens on user fetch failure to prevent loop
+        setTokens(null)
+        setStoredTokens(null)
         setUser(null)
       } finally {
         setLoading(false)
@@ -85,8 +104,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   const value = useMemo<AuthContextType>(() => ({
     user, tokens, loading,
-    login: async (email: string, password: string) => {
-      const r = await api.post('/auth/login', { email, password })
+    login: async (loginOrEmail: string, password: string) => {
+      const payload = /@/.test(loginOrEmail) ? { email: loginOrEmail } : { login: loginOrEmail }
+      const r = await api.post('/auth/login', { ...payload, password })
       const { accessToken, refreshToken, user: u } = r.data
       const t = { accessToken, refreshToken }
       setTokens(t)

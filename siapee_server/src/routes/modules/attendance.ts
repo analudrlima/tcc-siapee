@@ -1,5 +1,6 @@
 import { Router, Request, Response } from 'express'
 import { prisma } from '../../lib/prisma'
+import { logAudit } from '../../lib/audit'
 import { authenticate } from '../../middlewares/authenticate'
 
 export const attendanceRouter = Router()
@@ -30,6 +31,7 @@ attendanceRouter.put('/attendance/days/:dayId/records', authenticate, async (req
       create: { attendanceDayId: dayId, studentId: it.studentId, status: it.status, observation: it.observation }
     })
   }
+  logAudit({ action: 'ATTENDANCE_BULK_SAVE', entity: 'AttendanceDay', entityId: dayId, metadata: { count: items.length } })
   res.status(204).send()
 })
 
@@ -72,5 +74,6 @@ attendanceRouter.patch('/attendance/days/:dayId/records/:studentId', authenticat
     update: { status, observation },
     create: { attendanceDayId: dayId, studentId, status: status ?? 'PRESENT', observation }
   })
+  logAudit({ action: 'ATTENDANCE_PATCH', entity: 'AttendanceRecord', entityId: updated.id, metadata: { dayId, studentId, status } })
   res.json(updated)
 })

@@ -29,8 +29,31 @@ const hoisted = vi.hoisted(() => ({
     },
     planning: {
       findFirst: vi.fn(),
+      findMany: vi.fn(),
       update: vi.fn(),
       create: vi.fn(),
+    },
+    project: {
+      findMany: vi.fn(),
+      create: vi.fn(),
+      update: vi.fn(),
+      delete: vi.fn(),
+    },
+    projectMilestone: {
+      findMany: vi.fn(),
+      create: vi.fn(),
+      update: vi.fn(),
+      delete: vi.fn(),
+    },
+    auditLog: {
+      findMany: vi.fn(),
+      create: vi.fn(),
+    },
+    teacherClass: {
+      findMany: vi.fn(),
+      upsert: vi.fn(),
+      findUnique: vi.fn(),
+      delete: vi.fn(),
     },
     activity: {
       findMany: vi.fn(),
@@ -160,6 +183,34 @@ describe('Users', () => {
     const res = await request(app).put('/api/users/me').set(auth()).send({ name:'Ana Paula', phone:'123' })
     expect(res.status).toBe(200)
     expect(res.body.phone).toBe('123')
+  })
+  it('GET /api/users list allowed for SECRETARY', async () => {
+    hoisted.prismaMock.user.findUnique.mockResolvedValue({ role: 'SECRETARY' }) // authorize
+    hoisted.prismaMock.user.findMany = vi.fn().mockResolvedValue([{ id:'u2', name:'Prof B', email:'b@x.com', role:'TEACHER', avatarUrl:null, phone:null, birthDate:null, createdAt:new Date() }])
+    const res = await request(app).get('/api/users').set(auth())
+    expect(res.status).toBe(200)
+    expect(res.body[0].name).toBe('Prof B')
+  })
+  it('DELETE /api/users/:id forbids secretary deleting admin', async () => {
+    // authorize -> SECRETARY, route current -> SECRETARY, route target -> ADMIN
+    hoisted.prismaMock.user.findUnique
+      .mockResolvedValueOnce({ role:'SECRETARY' }) // authorize
+      .mockResolvedValueOnce({ role:'SECRETARY' }) // current in route
+      .mockResolvedValueOnce({ id:'admin-1', role:'ADMIN' }) // target in route
+    const res = await request(app).delete('/api/users/admin-1').set(auth())
+    expect(res.status).toBe(403)
+  })
+  it('DELETE /api/users/:id allows secretary deleting teacher', async () => {
+    hoisted.prismaMock.user.findUnique
+      .mockResolvedValueOnce({ role:'SECRETARY' }) // authorize
+      .mockResolvedValueOnce({ role:'SECRETARY' }) // current in route
+      .mockResolvedValueOnce({ id:'teacher-1', role:'TEACHER' }) // target in route
+    hoisted.prismaMock.signupRequest = hoisted.prismaMock.signupRequest || {} as any
+    hoisted.prismaMock.signupRequest.updateMany = vi.fn().mockResolvedValue({ count:0 })
+    hoisted.prismaMock.user.delete = vi.fn().mockResolvedValue({ id:'teacher-1' })
+    const res = await request(app).delete('/api/users/teacher-1').set(auth())
+    expect(res.status).toBe(204)
+    expect(hoisted.prismaMock.user.delete).toHaveBeenCalled()
   })
 })
 
@@ -341,5 +392,89 @@ describe('Signup', () => {
     const res = await request(app).post('/api/signup/requests/sr1/decide').set(auth()).send({ approved:true })
     expect(res.status).toBe(200)
   expect(hoisted.prismaMock.user.create).toHaveBeenCalled()
+  })
+})
+
+// New CSV Reports
+describe('Reports CSV', () => {
+  const app = createApp()
+  it('GET /api/reports/attendance.csv requires classId', async () => {
+    const res = await request(app).get('/api/reports/attendance.csv').set(auth())
+    expect(res.status).toBe(400)
+  })
+  it('GET /api/reports/attendance.csv returns csv', async () => {
+    hoisted.prismaMock.attendanceDay.findMany.mockResolvedValue([{ date:new Date('2025-01-01'), records:[{ status:'PRESENT', observation:null, student:{ name:'João', registryId:'ALU001' } }] }])
+    const res = await request(app).get('/api/reports/attendance.csv?classId=c1').set(auth())
+    expect(res.status).toBe(200)
+    expect(res.text.split('\n')[0]).toContain('date,student,registryId,status,observation')
+  })
+  it('GET /api/reports/grades.csv returns csv', async () => {
+    hoisted.prismaMock.activity.findMany.mockResolvedValue([{ title:'Atv 1', discipline:'Matemática', grades:[{ score:9, feedback:'Bom', student:{ name:'Maria', registryId:'ALU002' } }] }])
+    const res = await request(app).get('/api/reports/grades.csv?classId=c1').set(auth())
+    expect(res.status).toBe(200)
+    expect(res.text).toContain('activity,discipline,student,registryId,score,feedback')
+  })
+  it('GET /api/reports/planning.csv returns csv', async () => {
+    hoisted.prismaMock.planning.findMany.mockResolvedValue([{ id:'p1', kind:'ANNUAL', discipline:'Português', details:null, title:'Plano', lessonsPlanned:40, date:new Date('2025-02-01') }])
+    const res = await request(app).get('/api/reports/planning.csv?classId=c1').set(auth())
+    expect(res.status).toBe(200)
+    expect(res.text).toContain('kind,discipline,details,title,lessonsPlanned,date')
+  })
+  it('GET /api/reports/projects.csv returns csv', async () => {
+    hoisted.prismaMock.project.findMany.mockResolvedValue([{ id:'pr1', title:'Proj', type:'SUBJECT', status:'PLANNING', milestones:[{ id:'m1' },{ id:'m2' }], startDate:new Date('2025-03-01'), endDate:null }])
+    const res = await request(app).get('/api/reports/projects.csv?classId=c1').set(auth())
+    expect(res.status).toBe(200)
+    expect(res.text).toContain('title,type,status,milestones,startDate,endDate')
+  })
+  it('GET /api/reports/audit.csv returns csv', async () => {
+    hoisted.prismaMock.auditLog.findMany.mockResolvedValue([{ id:'au1', action:'CLASS_CREATE', entity:'Class', entityId:'c1', userId:'u1', createdAt:new Date('2025-01-02'), metadata:{ name:'1A'} }])
+    const res = await request(app).get('/api/reports/audit.csv').set(auth())
+    expect(res.status).toBe(200)
+    expect(res.text).toContain('action,entity,entityId,userId,createdAt,metadata')
+  })
+})
+
+describe('Teacher-Class Assignment', () => {
+  const app = createApp()
+  it('GET /api/classes/:id/teachers list', async () => {
+    hoisted.prismaMock.teacherClass.findMany.mockResolvedValue([{ id:'tc1', teacher:{ id:'t1', name:'Prof A', email:'a@x.com' }, disciplines:['Matemática'] }])
+    const res = await request(app).get('/api/classes/c1/teachers').set(auth())
+    expect(res.status).toBe(200)
+    expect(res.body[0].disciplines[0]).toBe('Matemática')
+  })
+  it('POST /api/classes/:id/teachers upsert', async () => {
+    // authorize requires ADMIN or SECRETARY
+    hoisted.prismaMock.user.findUnique.mockResolvedValue({ role: 'ADMIN' })
+    hoisted.prismaMock.teacherClass.upsert.mockResolvedValue({ id:'tc2', teacherId:'t1', classId:'c1', disciplines:['Português','Artes'] })
+    const res = await request(app).post('/api/classes/c1/teachers').set(auth()).send({ teacherId:'t1', disciplines:['Português','Artes'] })
+    expect(res.status).toBe(201)
+    expect(res.body.disciplines.length).toBe(2)
+  })
+  it('DELETE /api/classes/:id/teachers/:teacherId removes', async () => {
+    hoisted.prismaMock.user.findUnique.mockResolvedValue({ role: 'ADMIN' })
+    hoisted.prismaMock.teacherClass.findUnique.mockResolvedValue({ id:'tc2' })
+    hoisted.prismaMock.teacherClass.delete.mockResolvedValue({})
+    const res = await request(app).delete('/api/classes/c1/teachers/t1').set(auth())
+    expect(res.status).toBe(204)
+  })
+})
+
+describe('Rollover', () => {
+  const app = createApp()
+  it('POST /api/admin/rollover/preview returns preview', async () => {
+    hoisted.prismaMock.user.findUnique.mockResolvedValue({ role: 'ADMIN' })
+    hoisted.prismaMock.class.findMany.mockResolvedValue([{ id:'c1', name:'1º Ano A', code:'1A-2025', year:2025, disciplines:['Português'] }])
+    const res = await request(app).post('/api/admin/rollover/preview').set(auth()).send({ fromYear:2025, toYear:2026 })
+    expect(res.status).toBe(200)
+    expect(res.body.classes[0].code).toContain('2026')
+  })
+  it('POST /api/admin/rollover/commit creates missing', async () => {
+    hoisted.prismaMock.user.findUnique.mockResolvedValue({ role: 'ADMIN' })
+    hoisted.prismaMock.class.findMany.mockResolvedValue([{ id:'c1', name:'1º Ano A', code:'1A-2025', year:2025, disciplines:['Português'] }])
+    hoisted.prismaMock.class.findUnique.mockResolvedValueOnce(null)
+    hoisted.prismaMock.class.create = vi.fn().mockResolvedValue({ id:'c2', code:'1A-2026' })
+    const res = await request(app).post('/api/admin/rollover/commit').set(auth()).send({ fromYear:2025, toYear:2026 })
+    expect(res.status).toBe(200)
+    expect(res.body.created).toBe(1)
   })
 })
