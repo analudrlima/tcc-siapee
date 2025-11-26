@@ -2,15 +2,24 @@ import multer from 'multer'
 import path from 'path'
 import fs from 'fs'
 import crypto from 'crypto'
-
-function ensureDir(dir: string) {
-  fs.mkdirSync(dir, { recursive: true })
-}
+import os from 'os'
 
 export function makeMulter(destSubdir: 'avatars'|'students') {
-  const root = path.resolve(process.cwd(), 'uploads')
+  // Tenta usar a pasta local, se falhar (Vercel), usa /tmp
+  let root = path.resolve(process.cwd(), 'uploads')
+  
+  try {
+    fs.mkdirSync(path.join(root, destSubdir), { recursive: true })
+  } catch (error) {
+    // Ambiente somente leitura (Vercel), fallback para /tmp
+    root = path.join(os.tmpdir(), 'uploads')
+    try {
+      fs.mkdirSync(path.join(root, destSubdir), { recursive: true })
+    } catch {}
+  }
+
   const dest = path.join(root, destSubdir)
-  ensureDir(dest)
+
   const storage = multer.diskStorage({
     destination: (_req, _file, cb) => cb(null, dest),
     filename: (_req, file, cb) => {

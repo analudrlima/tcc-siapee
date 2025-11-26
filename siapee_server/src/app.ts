@@ -5,6 +5,8 @@ import cors from 'cors';
 import { env } from './config/env';
 import { router } from './routes';
 
+import os from 'os';
+
 export function createApp() {
   const app = express();
   
@@ -37,13 +39,21 @@ export function createApp() {
   app.use(express.json());
 
   // Ensure uploads directories exist and serve static files
-  const uploadsRoot = path.resolve(process.cwd(), 'uploads');
-  const avatarDir = path.join(uploadsRoot, 'avatars');
-  const studentDir = path.join(uploadsRoot, 'students');
+  // Tenta usar local, se falhar usa /tmp (para Vercel)
+  let uploadsRoot = path.resolve(process.cwd(), 'uploads');
   try {
+    const avatarDir = path.join(uploadsRoot, 'avatars');
+    const studentDir = path.join(uploadsRoot, 'students');
     fs.mkdirSync(avatarDir, { recursive: true });
     fs.mkdirSync(studentDir, { recursive: true });
-  } catch {}
+  } catch {
+    uploadsRoot = path.join(os.tmpdir(), 'uploads');
+    try {
+      fs.mkdirSync(path.join(uploadsRoot, 'avatars'), { recursive: true });
+      fs.mkdirSync(path.join(uploadsRoot, 'students'), { recursive: true });
+    } catch {}
+  }
+  
   app.use('/uploads', express.static(uploadsRoot));
 
   app.get('/health', (_req: Request, res: Response) => {
