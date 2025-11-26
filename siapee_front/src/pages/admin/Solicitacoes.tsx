@@ -86,10 +86,10 @@ export function AdminSolicitacoes({ embed }: { embed?: boolean }) {
                 <tr key={it.id}>
                   <td>{it.name}</td>
                   <td>{it.email}</td>
-                  <td>{it.roleRequested}</td>
+                  <td>{it.roleRequested === 'TEACHER' ? 'Professor(a)' : 'Secretaria'}</td>
                   <td>
                     <span className={`pill ${it.status==='PENDING'?'yellow': it.status==='APPROVED'?'green':'red'}`}>
-                      {it.status}
+                      {it.status === 'PENDING' ? 'Pendente' : it.status === 'APPROVED' ? 'Aprovado' : 'Rejeitado'}
                     </span>
                   </td>
                   <td>{new Date(it.createdAt).toLocaleString('pt-BR')}</td>

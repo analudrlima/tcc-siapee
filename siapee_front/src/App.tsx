@@ -1015,17 +1015,7 @@ function AtividadesMateria({ category }: { category?: 'SUBJECT'|'MULTIDISCIPLINA
   }
   const remove = async (id: string) => { await api.delete(`/activities/${id}`); await load(classId); toast.success('Atividade excluída') }
   const refresh = async () => load(classId)
-  const exportCsv = () => {
-    const rows = items.map(a => ({
-      Titulo: a.title,
-      Disciplina: a.discipline ?? '',
-      Vencimento: a.dueDate ? new Date(a.dueDate).toLocaleDateString() : '',
-      NotaMax: a.maxScore
-    }))
-    const csv = ['Titulo,Disciplina,Vencimento,NotaMax'].concat(rows.map(r => `${JSON.stringify(r.Titulo)},${JSON.stringify(r.Disciplina)},${JSON.stringify(r.Vencimento)},${r.NotaMax}`)).join('\n')
-    const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' })
-    const url = URL.createObjectURL(blob); const a = document.createElement('a'); a.href = url; a.download = 'atividades.csv'; a.click(); URL.revokeObjectURL(url)
-  }
+  // exportCsv removido conforme solicitação
 
   const toggleExpand = async (a: Activity, which: 'relatos'|'notas') => {
     setTab(which)
@@ -1118,7 +1108,7 @@ function AtividadesMateria({ category }: { category?: 'SUBJECT'|'MULTIDISCIPLINA
           ) : (
             <select className="select" value={discipline} onChange={e=>setDiscipline(e.target.value)}>
               <option value="">(todas)</option>
-              <option>Artes</option><option>Português</option><option>Matemática</option>
+              {availableDisciplines.map(d => <option key={d} value={d}>{d}</option>)}
             </select>
           )}
         </div>
@@ -1144,7 +1134,6 @@ function AtividadesMateria({ category }: { category?: 'SUBJECT'|'MULTIDISCIPLINA
         </div>
         <div className="form-actions">
           <button data-cy="activity-add" className="btn" onClick={create} disabled={!classId}>Adicionar</button>
-          <button data-cy="activity-export" className="btn btn-outline" onClick={exportCsv} disabled={!items.length}>Exportar CSV</button>
         </div>
         {loading ? 'Carregando...' : (
           <table className="table">
@@ -1463,7 +1452,10 @@ function FaltasObservacoes({ embed }: { embed?: boolean }) {
 function HistoricoAcademico({ type, embed }: { type?: 'atividades'|'projetos'|'avaliacoes'; embed?: boolean }) {
   const { classes } = useClasses()
   const [classId, setClassId] = useState('')
-  const [dateFilter, setDateFilter] = useState('')
+  const [monthStart, setMonthStart] = useState('')
+  const [monthEnd, setMonthEnd] = useState('')
+  const [appliedStart, setAppliedStart] = useState('')
+  const [appliedEnd, setAppliedEnd] = useState('')
   const [typeFilter, setTypeFilter] = useState(type || 'todos')
   const [searchTerm, setSearchTerm] = useState('')
   const [items, setItems] = useState<any[]>([])
@@ -1490,6 +1482,7 @@ function HistoricoAcademico({ type, embed }: { type?: 'atividades'|'projetos'|'a
           allItems = [...allItems, ...activities]
         } catch (error) {
           console.warn('Failed to load activities:', error)
+          toast.error('Erro ao carregar atividades')
         }
       }
       
@@ -1507,13 +1500,27 @@ function HistoricoAcademico({ type, embed }: { type?: 'atividades'|'projetos'|'a
           allItems = [...allItems, ...projects]
         } catch (error) {
           console.warn('Failed to load projects:', error)
+          toast.error('Erro ao carregar projetos')
         }
       }
       
       // Para avaliações, usar dados do planejamento individual
       if (typeFilter === 'todos' || typeFilter === 'avaliacoes') {
-        // Avaliações são específicas e podem ser implementadas posteriormente
-        // Por enquanto, deixar vazio ou usar dados existentes
+        try {
+          const planningsRes = await api.get(`/classes/${cid}/plannings`, { params: { discipline: 'Avaliação' } })
+          const evaluations = planningsRes.data.map((p: any) => ({
+            id: p.id,
+            title: p.title || 'Avaliação',
+            description: p.content,
+            discipline: p.discipline,
+            type: 'avaliacao',
+            completedAt: p.date || p.createdAt
+          }))
+          allItems = [...allItems, ...evaluations]
+        } catch (error) {
+          console.warn('Failed to load evaluations:', error)
+          toast.error('Erro ao carregar avaliações')
+        }
       }
       
       setItems(allItems)
@@ -1527,11 +1534,19 @@ function HistoricoAcademico({ type, embed }: { type?: 'atividades'|'projetos'|'a
   }, [classId, typeFilter])
 
   const filteredItems = items.filter(item => {
-    const matchesSearch = item.title.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                         (item.description && item.description.toLowerCase().includes(searchTerm.toLowerCase())) ||
-                         (item.discipline && item.discipline.toLowerCase().includes(searchTerm.toLowerCase()))
+    const title = item.title || ''
+    const desc = item.description || ''
+    const disc = item.discipline || ''
+    const search = searchTerm.toLowerCase()
+
+    const matchesSearch = title.toLowerCase().includes(search) ||
+                         desc.toLowerCase().includes(search) ||
+                         disc.toLowerCase().includes(search)
     
-    const matchesDate = !dateFilter || (item.completedAt && item.completedAt.startsWith(dateFilter))
+    // Comparação segura por mês (YYYY-MM)
+    const itemMonth = item.completedAt ? String(item.completedAt).slice(0, 7) : ''
+    const matchesDate = (!appliedStart || (itemMonth && itemMonth >= appliedStart)) &&
+                        (!appliedEnd || (itemMonth && itemMonth <= appliedEnd))
     
     return matchesSearch && matchesDate
   })
@@ -1603,7 +1618,26 @@ function HistoricoAcademico({ type, embed }: { type?: 'atividades'|'projetos'|'a
         </div>
         <div>
           <div>Período:</div>
-          <input className="input" type="month" value={dateFilter} onChange={e=>setDateFilter(e.target.value)} />
+          <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+            <input 
+              className="input" 
+              type="month" 
+              value={monthStart} 
+              onChange={e=>setMonthStart(e.target.value)} 
+              style={{ width: 135 }}
+            />
+            <span>a</span>
+            <input 
+              className="input" 
+              type="month" 
+              value={monthEnd} 
+              onChange={e=>setMonthEnd(e.target.value)} 
+              style={{ width: 135 }}
+            />
+            <button className="btn" type="button" onClick={() => { setAppliedStart(monthStart); setAppliedEnd(monthEnd) }}>
+              Buscar
+            </button>
+          </div>
         </div>
         <div>
           <div>Buscar:</div>
